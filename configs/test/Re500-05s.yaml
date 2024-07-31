@@ -1,0 +1,29 @@
+data:
+  datapath: 'Data-n-model\NS-Re500_T500_id0.npy'
+  Re: 500
+  total_num: 500
+  offset: 250
+  n_sample: 1
+  time_interval: 0.5
+  nx: 64
+  nt: 64
+  sub: 2
+  sub_t: 2
+  shuffle: False
+
+model:
+  layers: [64, 64, 64, 64, 64]
+  modes1: [8, 8, 8, 8]
+  modes2: [8, 8, 8, 8]
+  modes3: [8, 8, 8, 8]
+  fc_dim: 128
+
+test:
+  batchsize: 1
+  ckpt: 'Data-n-model\PINO-pretrain-Re500-05s-4C4.pt'
+
+log:
+  project: 'PINO-None'
+  group: 'eval'
+
+
