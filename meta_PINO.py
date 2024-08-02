@@ -2,11 +2,10 @@ import yaml
 from argparse import ArgumentParser
 from time import time
 from timeit import default_timer
-from datetime import timedelta
+from datetime import datetime, timedelta
 from tqdm import tqdm
 import csv
 import os
-import random
 
 try:
     import wandb
@@ -33,6 +32,11 @@ import torch.multiprocessing as mp
 
 from models import FNO3d, FNO2d
 
+import warnings
+
+warnings.filterwarnings("ignore", message=".*functorch.vjp.*")
+warnings.filterwarnings("ignore", message=".*functorch.grad.*")
+
 class InnerNet(
     ImplicitMetaGradientModule,
     linear_solve=torchopt.linear_solve.solve_normal_cg(maxiter=5, atol=0),
@@ -40,6 +44,7 @@ class InnerNet(
     def __init__(self,
                 meta_net,
                 loss_fn,
+                inner_lr,
                 n_inner_iter,
                 reg_param,
                 batch_size,
@@ -57,6 +62,7 @@ class InnerNet(
         self.meta_net = meta_net
         self.net = torchopt.module_clone(meta_net, by='deepcopy', detach_buffers=True)
         self.loss_fn = loss_fn
+        self.inner_lr = inner_lr
         self.n_inner_iter = n_inner_iter
         self.reg_param = reg_param
         self.batch_size = batch_size
@@ -104,7 +110,7 @@ class InnerNet(
 
     def solve(self, x, y):
         params = tuple(self.parameters())
-        inner_optim = torchopt.SGD(params, lr=1e-1)
+        inner_optim = torchopt.SGD(params, lr=self.inner_lr)
         with torch.enable_grad():
             # Temporarily enable gradient computation for conducting the optimization
             for _ in range(self.n_inner_iter):
@@ -164,7 +170,7 @@ def subprocess_fn(rank, args):
 
 
     # construct model
-    model = FNO3d(modes1=config['model']['modes1'],
+    meta_net = FNO3d(modes1=config['model']['modes1'],
                   modes2=config['model']['modes2'],
                   modes3=config['model']['modes3'],
                   fc_dim=config['model']['fc_dim'],
@@ -173,20 +179,21 @@ def subprocess_fn(rank, args):
     if 'ckpt' in config['train']:
         ckpt_path = config['train']['ckpt']
         ckpt = torch.load(ckpt_path)
-        model.load_state_dict(ckpt['model'])
+        meta_net.load_state_dict(ckpt['model'])
         print('Weights loaded from %s' % ckpt_path)
 
     if args.distributed:
-        model = DDP(model, device_ids=[rank], broadcast_buffers=False)
+        meta_net = DDP(meta_net, device_ids=[rank], broadcast_buffers=False)
 
     forcing = get_forcing(loader.S).to(rank)
 
     # We will use Adam to (meta-)optimize the initial parameters
     # to be adapted.
-    model.train()
-    meta_opt = torchopt.Adam(model.parameters(), lr=0.001)
+    meta_net.train()
+    meta_lr = config['train']['meta_lr']
+    meta_opt = torchopt.Adam(meta_net.parameters(), lr=meta_lr)
 
-    train(model,
+    train(meta_net,
         loader,
         train_loader,
         meta_opt,
@@ -195,15 +202,14 @@ def subprocess_fn(rank, args):
         log=args.log,
         )
     
-    test(model,
+    test(meta_net,
          loader,
          test_loader,
          config,
          rank,
-         forcing,
          use_tqdm=True)
 
-def train(model,
+def train(meta_net,
         loader,
         train_loader,
         meta_opt,
@@ -224,6 +230,7 @@ def train(model,
     ic_weight = config['train']['ic_loss']
     f_weight = config['train']['f_loss']
     xy_weight = config['train']['xy_loss']
+    inner_lr = config['train']['inner_lr']
 
     batch_size = config['train']['batchsize']  # Assuming batch_size is defined in the config
     n_inner_iter = config['train']['inner_steps']
@@ -238,10 +245,13 @@ def train(model,
 
     log_file = config['log']['logfile'] 
 
-    if rank == 0 and not os.path.exists(log_file):
+    if rank == 0:
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = f"{config['log']['logfile']}_{current_time}.csv"
         with open(log_file, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['Epoch', 'Train IC Loss', 'Train F Loss', 'Train Loss', 'Train L2 Error', 'Epoch Time', 'Cumulative Time'])
+
 
 
     zero = torch.zeros(1).to(rank)
@@ -256,6 +266,22 @@ def train(model,
         if rank == 0 and profile:
                 torch.cuda.synchronize()
                 t1 = default_timer()
+        
+        inner_nets = [InnerNet(meta_net,
+            loss_fn,
+            inner_lr,
+            n_inner_iter,
+            reg_param,
+            batch_size,
+            S,
+            T,
+            rank,
+            forcing,
+            t_interval,
+            v,
+            xy_weight,
+            ic_weight,
+            f_weight) for _ in range(batch_size)]
 
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(rank), y_batch.to(rank)
@@ -263,22 +289,6 @@ def train(model,
             total_losses = 0
 
             meta_opt.zero_grad()
-
-            # Initialize inner_nets for each task in the batch
-            inner_nets = [InnerNet(model,
-                loss_fn,
-                n_inner_iter,
-                reg_param,
-                batch_size,
-                S,
-                T,
-                rank,
-                forcing,
-                t_interval,
-                v,
-                xy_weight,
-                ic_weight,
-                f_weight) for _ in range(batch_size)]
 
             for i in range(batch_size):
                 # Extract individual samples from the batch
@@ -335,9 +345,9 @@ def train(model,
             if use_tqdm:
                 pbar.set_description(
                     (
-                        f'Epoch: {ep}'
-                        f'Train f error: {loss_f:.5f}; Train ic l2 error: {loss_ic:.5f}. '
-                        f'Train loss: {total_loss:.5f}; Test l2 error: {loss_l2:.5f}'
+                        f'Epoch: {ep+1}; '
+                        f'Train f error: {loss_f:.5f}; Ic error: {loss_ic:.5f}. '
+                        f'Total error: {total_loss:.5f}; l2 error: {loss_l2:.5f}'
                     )
                 )
         if wandb and log:
@@ -351,21 +361,20 @@ def train(model,
     if rank == 0:
         save_checkpoint_meta(config['train']['save_dir'],
                         config['train']['save_name'],
-                        model, meta_opt)
+                        meta_net, meta_opt)
 
-def test(model,
+def test(meta_net,
          loader,
          test_loader,
          config,
          rank,
-         forcing,
          use_tqdm=True):
 
     # 数据参数
     S, T = loader.S, loader.T
 
     # 测试设置
-    batch_size = config['test']['batch_size']
+    batch_size = config['test']['batchsize']
     loss_fn = LpLoss(size_average=True)
 
     total_l2_loss = 0.0
@@ -382,7 +391,7 @@ def test(model,
 
         with torch.no_grad():
             x_in = F.pad(x_batch, (0, 0, 0, 5), "constant", 0)
-            out_batch = model(x_in).reshape(batch_size, S, S, T + 5)
+            out_batch = meta_net(x_in).reshape(batch_size, S, S, T + 5)
             out_batch = out_batch[..., :-5]
             x_batch = x_batch[:, :, :, 0, -1]
 
