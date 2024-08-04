@@ -5,7 +5,7 @@ from timeit import default_timer
 from datetime import datetime, timedelta
 from tqdm import tqdm
 import csv
-import os
+import json
 
 try:
     import wandb
@@ -247,11 +247,11 @@ def train(meta_net,
 
     if rank == 0:
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_file = f"{config['log']['logfile']}_{current_time}.csv"
-        with open(log_file, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(['Epoch', 'Train IC Loss', 'Train F Loss', 'Train Loss', 'Train L2 Error', 'Epoch Time', 'Cumulative Time'])
-
+        log_file = f"{config['log']['logfile']}_{current_time}.log"
+        with open(log_file, 'w') as f:
+            # Convert config dictionary to a pretty-printed string and write it to the file
+            config_str = json.dumps(config, indent=4)
+            print(f"Configuration:\n{config_str}\n", file=f)
 
 
     zero = torch.zeros(1).to(rank)
@@ -350,13 +350,20 @@ def train(meta_net,
                         f'Total error: {total_loss:.5f}; l2 error: {loss_l2:.5f}'
                     )
                 )
+
+            with open(log_file, 'a') as f:
+                print(
+                f"Epoch: {ep+1}; ",
+                f"Train IC Loss: {loss_ic:.5f}; ",
+                f"Train F Loss: {loss_f:.5f}; ",
+                f"Train Loss: {total_loss:.5f}; ",
+                f"Train L2 Error: {loss_l2:.5f}; ",
+                f"Epoch Time: {str(timedelta(seconds=epoch_time))}; ",
+                f"Cumulative Time: {str(timedelta(seconds=cumulative_time))}",
+                file=f
+            )
         if wandb and log:
             wandb.log(log_dict)
-    
-        # Record time and errors to CSV
-        with open(log_file, 'a', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow([ep, loss_ic, loss_f, total_loss, loss_l2, str(timedelta(seconds=epoch_time)), str(timedelta(seconds=cumulative_time))])
 
     if rank == 0:
         save_checkpoint_meta(config['train']['save_dir'],
