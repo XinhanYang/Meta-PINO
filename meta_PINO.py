@@ -354,7 +354,7 @@ def train(meta_net,
                 pbar.set_description(
                     (
                         f'Epoch: {ep+1}; '
-                        f'Total error: {total_loss:.5f}; l2 error: {loss_l2:.5f}'
+                        f'Total error: {total_loss:.5f}; l2 error: {loss_l2:.5f} '
                         f'Train f error: {loss_f:.5f}; Ic error: {loss_ic:.5f}. '
                     )
                 )
