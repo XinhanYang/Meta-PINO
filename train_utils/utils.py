@@ -174,7 +174,7 @@ def save_checkpoint(path, name, model, optimizer=None):
     print('Checkpoint is saved at %s' % ckpt_dir + name)
 
 
-def save_checkpoint_meta(path, name, model, optimizer=None):
+def save_checkpoint_meta(epoch, path, name, model, optimizer=None):
     ckpt_dir = 'checkpoints/%s/' % path
     if not os.path.exists(ckpt_dir):
         os.makedirs(ckpt_dir)
@@ -189,6 +189,7 @@ def save_checkpoint_meta(path, name, model, optimizer=None):
         optim_dict = 0.0
 
     torch.save({
+        'epoch': epoch,
         'model': model_state_dict,
         'optim': optim_dict
     }, ckpt_dir + name)

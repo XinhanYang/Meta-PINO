@@ -4,7 +4,7 @@ data:
   Re: 500
   total_num: 10
   offset: 0
-  n_sample: 2
+  n_sample: 10
   time_interval: 0.5
   nx: 64
   nt: 64
@@ -21,10 +21,11 @@ model:
   fc_dim: 128
 
 train:
-  batchsize: 2
-  epochs: 1
-  milestones: [500]
-  base_lr: 0.001
+  batchsize: 4
+  epochs: 10
+  milestones: [50]
+  meta_lr: 0.01
+  inner_lr: 0.01
   scheduler_gamma: 0.5
   ic_loss: 1.0
   f_loss: 1.0
@@ -37,9 +38,12 @@ train:
   inner_steps: 5
   reg_params: 2.0
 
+test:
+  batchsize: 8
+
 log:
   project: 'PINO-meta'
   group: 'Re500-05s-meta'
-  logfile: 'PINO-meta-error'
+  logfile: 'log\PINO-meta-error'
 
 
