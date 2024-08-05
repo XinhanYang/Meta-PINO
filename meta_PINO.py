@@ -4,7 +4,7 @@ from time import time
 from timeit import default_timer
 from datetime import datetime, timedelta
 from tqdm import tqdm
-import csv
+import os
 import json
 
 try:
@@ -176,11 +176,17 @@ def subprocess_fn(rank, args):
                   fc_dim=config['model']['fc_dim'],
                   layers=config['model']['layers']).to(rank)
 
+    start_epoch = 0
     if 'ckpt' in config['train']:
         ckpt_path = config['train']['ckpt']
-        ckpt = torch.load(ckpt_path)
-        meta_net.load_state_dict(ckpt['model'])
-        print('Weights loaded from %s' % ckpt_path)
+        if os.path.exists(ckpt_path):
+            ckpt = torch.load(ckpt_path, map_location={'cuda:%d' % 0: 'cuda:%d' % rank})
+            meta_net.load_state_dict(ckpt['model'])
+            meta_opt.load_state_dict(ckpt['optim'])
+            start_epoch = ckpt['epoch'] + 1
+            print('Checkpoint loaded from %s' % ckpt_path)
+        else:
+            print('No checkpoint found at %s' % ckpt_path)
 
     if args.distributed:
         meta_net = DDP(meta_net, device_ids=[rank], broadcast_buffers=False)
@@ -197,10 +203,11 @@ def subprocess_fn(rank, args):
         loader,
         train_loader,
         meta_opt,
-        forcing, config,
+        forcing, 
+        config,
         rank,
         log=args.log,
-        )
+        start_epoch = start_epoch)
     
     test(meta_net,
          loader,
@@ -217,6 +224,7 @@ def train(meta_net,
         config,
         rank,
         log,
+        start_epoch=0,
         use_tqdm=True,
         profile=False):
 
@@ -237,7 +245,7 @@ def train(meta_net,
     reg_param = config['train']['reg_params']
     loss_fn = LpLoss(size_average=True)
 
-    pbar = range(config['train']['epochs'])
+    pbar = range(start_epoch, config['train']['epochs'])
     if use_tqdm:
         pbar = tqdm(pbar, dynamic_ncols=True, smoothing=0.05)
     
@@ -346,18 +354,18 @@ def train(meta_net,
                 pbar.set_description(
                     (
                         f'Epoch: {ep+1}; '
-                        f'Train f error: {loss_f:.5f}; Ic error: {loss_ic:.5f}. '
                         f'Total error: {total_loss:.5f}; l2 error: {loss_l2:.5f}'
+                        f'Train f error: {loss_f:.5f}; Ic error: {loss_ic:.5f}. '
                     )
                 )
 
             with open(log_file, 'a') as f:
                 print(
                 f"Epoch: {ep+1}; ",
+                f"Train total Loss: {total_loss:.5f}; ",
+                f"Train data L2 Error: {loss_l2:.5f}; ",
                 f"Train IC Loss: {loss_ic:.5f}; ",
                 f"Train F Loss: {loss_f:.5f}; ",
-                f"Train Loss: {total_loss:.5f}; ",
-                f"Train L2 Error: {loss_l2:.5f}; ",
                 f"Epoch Time: {str(timedelta(seconds=epoch_time))}; ",
                 f"Cumulative Time: {str(timedelta(seconds=cumulative_time))}",
                 file=f
@@ -365,10 +373,11 @@ def train(meta_net,
         if wandb and log:
             wandb.log(log_dict)
 
-    if rank == 0:
-        save_checkpoint_meta(config['train']['save_dir'],
-                        config['train']['save_name'],
-                        meta_net, meta_opt)
+        if rank == 0:
+            save_checkpoint_meta(ep,
+                config['train']['save_dir'],
+                config['train']['save_name'],
+                meta_net, meta_opt)
 
 def test(meta_net,
          loader,
