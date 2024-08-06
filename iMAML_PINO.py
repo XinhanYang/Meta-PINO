@@ -110,7 +110,7 @@ class InnerNet(
 
     def solve(self, x, y):
         params = tuple(self.parameters())
-        inner_optim = torchopt.SGD(params, lr=self.inner_lr)
+        inner_optim = torchopt.Adam(params, betas=(0.9, 0.999), lr=self.inner_lr)
         with torch.enable_grad():
             # Temporarily enable gradient computation for conducting the optimization
             for _ in range(self.n_inner_iter):
@@ -119,8 +119,6 @@ class InnerNet(
                 loss.backward(inputs=params)
                 inner_optim.step()
         return self
-
-
 
 def subprocess_fn(rank, args):
 
@@ -325,6 +323,7 @@ def train(meta_net,
                 loss_dict['loss_f'] += loss_f
                 loss_dict['loss_ic'] += loss_ic
 
+            total_losses /= batch_size
             total_losses.backward()
             meta_opt.step()
         
@@ -338,10 +337,10 @@ def train(meta_net,
 
         loss_reduced = reduce_loss_dict(loss_dict)
 
-        loss_ic = loss_reduced['loss_ic'].item() / len(train_loader)
-        loss_f = loss_reduced['loss_f'].item() / len(train_loader)
-        total_loss = loss_reduced['total_loss'].item() / len(train_loader)
-        loss_l2 = loss_reduced['loss_l2'].item() / len(train_loader)
+        loss_ic = loss_reduced['loss_ic'].item() / (len(train_loader)*batch_size)
+        loss_f = loss_reduced['loss_f'].item() / (len(train_loader)*batch_size)
+        total_loss = loss_reduced['total_loss'].item() / (len(train_loader)*batch_size)
+        loss_l2 = loss_reduced['loss_l2'].item() / (len(train_loader)*batch_size)
         log_dict = {
             'Train f error': loss_f,
             'Train L2 error': loss_ic,
