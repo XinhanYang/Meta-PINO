@@ -14,15 +14,15 @@ data:
   test_ratio: 0.1
 
 model:
-  layers: [32,32,32,32,32]
-  modes1: [4,4,4,4]
-  modes2: [4,4,4,4]
-  modes3: [4,4,4,4]
-  fc_dim: 64
+  layers: [16,16,16,16,16]
+  modes1: [2,2,2,2]
+  modes2: [2,2,2,2]
+  modes3: [2,2,2,2]
+  fc_dim: 32
 
 train:
-  batchsize: 8
-  epochs: 400
+  batchsize: 4
+  epochs: 11
   milestones: [200]
   meta_lr: 0.005
   inner_lr: 0.005
@@ -31,12 +31,14 @@ train:
   f_loss: 1.0
   xy_loss: 5.0
   save_dir: 'Re500-F'
-  save_name: 'PINO-meta-Re500-05s_64.pt'
+  save_name: 'PINO-imeta-Re500-05s_64_16.pt'
   data_iter: 0     # number of update steps on data for each epoch
   eqn_iter: 1       # number of update steps on virtual PDE for each epoch
 
   inner_steps: 5
   reg_params: 2.0
+
+  ckpt: 'checkpoints\Re500-F\PINO-imeta-Re500-05s_64_16.pt'
 
 test:
   batchsize: 8
