@@ -177,14 +177,24 @@ def subprocess_fn(rank, args):
     start_epoch = 0
     if 'ckpt' in config['train']:
         ckpt_path = config['train']['ckpt']
-        if os.path.exists(ckpt_path):
-            ckpt = torch.load(ckpt_path, map_location={'cuda:%d' % 0: 'cuda:%d' % rank})
-            meta_net.load_state_dict(ckpt['model'])
-            meta_opt.load_state_dict(ckpt['optim'])
-            start_epoch = ckpt['epoch'] + 1
-            print('Checkpoint loaded from %s' % ckpt_path)
+        if ckpt_path is not None:
+            if os.path.exists(ckpt_path):
+                ckpt = torch.load(ckpt_path, map_location={'cuda:%d' % 0: 'cuda:%d' % rank})
+                
+                # Check and load model state dict if it exists
+                if 'model' in ckpt:
+                    meta_net.load_state_dict(ckpt['model'])
+                    print('Model state loaded from %s' % ckpt_path)
+                # Update start epoch if it exists
+                if 'epoch' in ckpt:
+                    start_epoch = ckpt['epoch'] + 1
+                    print('Starting epoch updated to %d' % start_epoch)
+            else:
+                print('Checkpoint file does not exist at %s' % ckpt_path)
         else:
-            print('No checkpoint found at %s' % ckpt_path)
+            print('Checkpoint path is None in the config')
+    else:
+        print('Checkpoint path is not provided in the config')
 
     if args.distributed:
         meta_net = DDP(meta_net, device_ids=[rank], broadcast_buffers=False)
