@@ -54,9 +54,9 @@ class InnerNet(
                 forcing,
                 t_interval,
                 v,
-                xy_weight,
-                ic_weight,
-                f_weight
+                inner_data_weight,
+                inner_ic_weight,
+                inner_f_weight
                 ):
         super().__init__()
         self.meta_net = meta_net
@@ -72,9 +72,9 @@ class InnerNet(
         self.forcing = forcing
         self.t_interval = t_interval
         self.v = v
-        self.xy_weight = xy_weight
-        self.ic_weight = ic_weight
-        self.f_weight = f_weight
+        self.data_weight = inner_data_weight
+        self.ic_weight = inner_ic_weight
+        self.f_weight = inner_f_weight
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -99,14 +99,16 @@ class InnerNet(
         else:
             loss_ic, loss_f = zero, zero
 
-        total_loss = loss_l2 * self.xy_weight + loss_f * self.f_weight + loss_ic * self.ic_weight
+        total_loss = loss_l2 * self.data_weight + loss_f * self.f_weight + loss_ic * self.ic_weight
 
-        regularization_loss = 0
-        for p1, p2 in zip(self.parameters(), self.meta_parameters()):
-            diff = p1 - p2
-            diff_norm = torch.norm(diff)
-            regularization_loss += 0.5 * self.reg_param * diff_norm**2
-        return total_loss + regularization_loss
+        # regularization_loss = 0
+        # for p1, p2 in zip(self.parameters(), self.meta_parameters()):
+        #     diff = p1 - p2
+        #     diff_norm = torch.norm(diff)
+        #     regularization_loss += 0.5 * self.reg_param * diff_norm**2
+        # return total_loss + regularization_loss
+
+        return total_loss
 
     def solve(self, x, y):
         params = tuple(self.parameters())
@@ -245,7 +247,10 @@ def train(meta_net,
     batch_size = config['train']['batchsize']
     ic_weight = config['train']['ic_loss']
     f_weight = config['train']['f_loss']
-    xy_weight = config['train']['xy_loss']
+    data_weight = config['train']['data_loss']
+    inner_ic_weight = config['train']['inner_ic_loss']
+    inner_f_weight = config['train']['inner_f_loss']
+    inner_data_weight = config['train']['inner_data_loss']
     inner_lr = config['train']['inner_lr']
 
     batch_size = config['train']['batchsize']  # Assuming batch_size is defined in the config
@@ -295,9 +300,9 @@ def train(meta_net,
             forcing,
             t_interval,
             v,
-            xy_weight,
-            ic_weight,
-            f_weight) for _ in range(batch_size)]
+            inner_data_weight,
+            inner_ic_weight,
+            inner_f_weight) for _ in range(batch_size)]
 
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(rank), y_batch.to(rank)
@@ -324,7 +329,7 @@ def train(meta_net,
                 else:
                     loss_ic, loss_f = zero, zero
 
-                total_loss = loss_l2 * xy_weight + loss_f * f_weight + loss_ic * ic_weight
+                total_loss = loss_l2 * data_weight + loss_f * f_weight + loss_ic * ic_weight
                 
                 total_losses += total_loss
 
@@ -395,10 +400,8 @@ def test(meta_net,
          rank,
          use_tqdm=True):
 
-    # 数据参数
     S, T = loader.S, loader.T
 
-    # 测试设置
     batch_size = config['test']['batchsize']
     loss_fn = LpLoss(size_average=True)
 
