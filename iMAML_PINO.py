@@ -94,10 +94,7 @@ class InnerNet(
         x = x[:, :, :, 0, -1]
         loss_l2 = self.loss_fn(out.view(1, self.S, self.S, self.T), y.view(1, self.S, self.S, self.T))
 
-        if self.ic_weight != 0 or self.f_weight != 0:
-            loss_ic, loss_f = PINO_loss3d(out.view(1, self.S, self.S, self.T), x, self.forcing, self.v, self.t_interval)
-        else:
-            loss_ic, loss_f = zero, zero
+        loss_ic, loss_f = PINO_loss3d(out.view(1, self.S, self.S, self.T), x, self.forcing, self.v, self.t_interval)
 
         total_loss = loss_l2 * self.data_weight + loss_f * self.f_weight + loss_ic * self.ic_weight
 
@@ -324,10 +321,8 @@ def train(meta_net,
                 x_instance = x_instance[:, :, :, 0, -1]
                 loss_l2 = loss_fn(out.view(1, S, S, T), y_instance.view(1, S, S, T))
 
-                if ic_weight != 0 or f_weight != 0:
-                    loss_ic, loss_f = PINO_loss3d(out.view(1, S, S, T), x_instance, forcing, v, t_interval)
-                else:
-                    loss_ic, loss_f = zero, zero
+
+                loss_ic, loss_f = PINO_loss3d(out.view(1, S, S, T), x_instance, forcing, v, t_interval)
 
                 total_loss = loss_l2 * data_weight + loss_f * f_weight + loss_ic * ic_weight
                 
