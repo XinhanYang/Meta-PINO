@@ -54,7 +54,6 @@ class InnerNet(
                 forcing,
                 t_interval,
                 v,
-                inner_data_weight,
                 inner_ic_weight,
                 inner_f_weight
                 ):
@@ -72,7 +71,6 @@ class InnerNet(
         self.forcing = forcing
         self.t_interval = t_interval
         self.v = v
-        self.data_weight = inner_data_weight
         self.ic_weight = inner_ic_weight
         self.f_weight = inner_f_weight
         self.reset_parameters()
@@ -88,24 +86,20 @@ class InnerNet(
         return self.net(x)
 
     def objective(self, x, y):
-        zero = torch.zeros(1).to(self.rank)
         out = self(x).reshape(1, self.S, self.S, self.T + 5)
         out = out[..., :-5]
         x = x[:, :, :, 0, -1]
-        loss_l2 = self.loss_fn(out.view(1, self.S, self.S, self.T), y.view(1, self.S, self.S, self.T))
-
+    
         loss_ic, loss_f = PINO_loss3d(out.view(1, self.S, self.S, self.T), x, self.forcing, self.v, self.t_interval)
 
-        total_loss = loss_l2 * self.data_weight + loss_f * self.f_weight + loss_ic * self.ic_weight
+        total_loss = loss_f * self.f_weight + loss_ic * self.ic_weight
 
-        # regularization_loss = 0
-        # for p1, p2 in zip(self.parameters(), self.meta_parameters()):
-        #     diff = p1 - p2
-        #     diff_norm = torch.norm(diff)
-        #     regularization_loss += 0.5 * self.reg_param * diff_norm**2
-        # return total_loss + regularization_loss
-
-        return total_loss
+        regularization_loss = 0
+        for p1, p2 in zip(self.parameters(), self.meta_parameters()):
+            diff = p1 - p2
+            diff_norm = torch.norm(diff)
+            regularization_loss += 0.5 * self.reg_param * diff_norm**2
+        return total_loss + regularization_loss
 
     def solve(self, x, y):
         params = tuple(self.parameters())
@@ -242,12 +236,9 @@ def train(meta_net,
 
     # training settings
     batch_size = config['train']['batchsize']
-    ic_weight = config['train']['ic_loss']
-    f_weight = config['train']['f_loss']
     data_weight = config['train']['data_loss']
     inner_ic_weight = config['train']['inner_ic_loss']
     inner_f_weight = config['train']['inner_f_loss']
-    inner_data_weight = config['train']['inner_data_loss']
     inner_lr = config['train']['inner_lr']
 
     batch_size = config['train']['batchsize']  # Assuming batch_size is defined in the config
@@ -270,9 +261,6 @@ def train(meta_net,
             # Convert config dictionary to a pretty-printed string and write it to the file
             config_str = json.dumps(config, indent=4)
             print(f"Configuration:\n{config_str}\n", file=f)
-
-
-    zero = torch.zeros(1).to(rank)
 
     for ep in pbar:
         epoch_start_time = time()  # Start time for the epoch
@@ -297,7 +285,6 @@ def train(meta_net,
             forcing,
             t_interval,
             v,
-            inner_data_weight,
             inner_ic_weight,
             inner_f_weight) for _ in range(batch_size)]
 
@@ -321,10 +308,9 @@ def train(meta_net,
                 x_instance = x_instance[:, :, :, 0, -1]
                 loss_l2 = loss_fn(out.view(1, S, S, T), y_instance.view(1, S, S, T))
 
-
                 loss_ic, loss_f = PINO_loss3d(out.view(1, S, S, T), x_instance, forcing, v, t_interval)
 
-                total_loss = loss_l2 * data_weight + loss_f * f_weight + loss_ic * ic_weight
+                total_loss = loss_l2 * data_weight
                 
                 total_losses += total_loss
 
