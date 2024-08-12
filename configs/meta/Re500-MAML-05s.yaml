@@ -14,27 +14,24 @@ data:
   test_ratio: 0.1
 
 model:
-  layers: [32, 32, 32, 32, 32]
+  layers: [32, 32, 32 ,32, 32]
   modes1: [4, 4, 4, 4]
   modes2: [4, 4, 4, 4]
   modes3: [4, 4, 4, 4]
   fc_dim: 64
-
+  
 train:
-  batchsize: 4
-  epochs: 11
+  batchsize: 8
+  epochs: 400
   milestones: [200]
-  meta_lr: 0.005
-  inner_lr: 0.005
+  meta_lr: 0.001
+  inner_lr: 0.001
   scheduler_gamma: 0.5
-  ic_loss: 0.0
-  f_loss: 0.0
   data_loss: 1.0
   inner_ic_loss: 1.0
   inner_f_loss: 1.0
-  inner_data_loss: 0.0
   save_dir: 'Re500-F'
-  save_name: 'PINO-imeta-Re500-05s_64_32.pt'
+  save_name: 'PINO-MAML-Re500-05s_64_32.pt'
   data_iter: 0     # number of update steps on data for each epoch
   eqn_iter: 1       # number of update steps on virtual PDE for each epoch
 
@@ -47,8 +44,8 @@ test:
   batchsize: 8
 
 log:
-  project: 'PINO-meta'
-  group: 'Re500-05s-meta'
-  logfile: 'log\PINO-meta-error'
+  project: 'PINO-maml-meta'
+  group: 'Re500-05s-maml-meta'
+  logfile: 'log\PINO-maml-meta-error'
 
 
