@@ -27,7 +27,9 @@ train:
   meta_lr: 0.001
   inner_lr: 0.001
   scheduler_gamma: 0.5
-  data_loss: 1.0
+  data_loss: 5.0
+  ic_loss: 1.0
+  f_loss: 1.0
   inner_ic_loss: 1.0
   inner_f_loss: 1.0
   save_dir: 'Re500-F'
