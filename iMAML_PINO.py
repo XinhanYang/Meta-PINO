@@ -237,6 +237,8 @@ def train(meta_net,
     # training settings
     batch_size = config['train']['batchsize']
     data_weight = config['train']['data_loss']
+    ic_weight = config['train']['ic_loss']
+    f_weight = config['train']['f_loss']
     inner_ic_weight = config['train']['inner_ic_loss']
     inner_f_weight = config['train']['inner_f_loss']
     inner_lr = config['train']['inner_lr']
@@ -309,7 +311,7 @@ def train(meta_net,
 
                 loss_ic, loss_f = PINO_loss3d(out.view(1, S, S, T), x_instance, forcing, v, t_interval)
 
-                total_loss = loss_l2 * data_weight
+                total_loss = loss_l2 * data_weight + loss_ic * ic_weight + loss_f * f_weight
                 
                 total_losses += total_loss
 
