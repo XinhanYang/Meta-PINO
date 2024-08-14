@@ -22,7 +22,7 @@ model:
 
 train:
   batchsize: 8
-  epochs: 1
+  epochs: 100
   milestones: [500]
   inner_lr: 0.001
   scheduler_gamma: 0.5
@@ -30,7 +30,7 @@ train:
   f_loss: 1.0
   xy_loss: 0
 
-  ckpt: 'Data-n-model\PINO-baseline.pt'
+  ckpt: 'Data-n-model\PINO-iMAML-Re500-05s_64_32.pt'
 
 test:
   batchsize: 8
@@ -38,4 +38,4 @@ test:
 log:
   project: 'PINO-meta'
   group: 'Re500-05s-meta'
-  logfile: 'log\PINO-imaml-finetune-1000epoch'
+  logfile: 'log\PINO-maml-finetune-100epoch'
