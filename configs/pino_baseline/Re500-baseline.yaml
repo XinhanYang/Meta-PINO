@@ -1,4 +1,5 @@
 data:
+  seed: 1234
   datapath: 'Data-n-model\NS-Re500_T500_id0.npy'
   Re: 500
   total_num: 100
@@ -10,13 +11,14 @@ data:
   sub: 1
   sub_t: 1
   shuffle: False
+  test_ratio: 0.1
 
 model:
-  layers: [32, 32, 32, 32, 32]
-  modes1: [4, 4, 4, 4]
-  modes2: [4, 4, 4, 4]
-  modes3: [4, 4, 4, 4]
-  fc_dim: 64
+  layers: [64, 64, 64, 64, 64]
+  modes1: [8, 8, 8, 8]
+  modes2: [8, 8, 8, 8]
+  modes3: [8, 8, 8, 8]
+  fc_dim: 128
 
 train:
   batchsize: 8
