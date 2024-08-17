@@ -28,6 +28,13 @@ def subprocess_fn(rank, args):
 
     # construct dataloader
     data_config = config['data']
+
+    seed = data_config['seed']
+    print(f'Seed :{seed}')
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = True
+
     if 'datapath2' in data_config:
         loader = NSLoader(datapath1=data_config['datapath'], datapath2=data_config['datapath2'],
                           nx=data_config['nx'], nt=data_config['nt'],
@@ -42,8 +49,9 @@ def subprocess_fn(rank, args):
                           t_interval=data_config['time_interval'])
     if args.start != -1:
         config['data']['offset'] = args.start
-    trainset = loader.make_dataset(data_config['n_sample'],
-                               start=data_config['offset'])
+    # trainset = loader.make_dataset(data_config['n_sample'],
+    #                            start=data_config['offset'])
+    trainset, testset = loader.split_dataset(data_config['n_sample'], data_config['offset'], data_config['test_ratio'])
     train_loader = DataLoader(trainset, batch_size=config['train']['batchsize'],
                               sampler=data_sampler(trainset,
                                                    shuffle=data_config['shuffle'],
