@@ -106,13 +106,12 @@ def subprocess_fn(rank, args):
         cleanup()
     print(f'Process {rank} done!...')
 
-
 if __name__ == '__main__':
-    seed = random.randint(1, 10000)
-    print(f'Random seed :{seed}')
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.benchmark = True
+    # seed = random.randint(1, 10000)
+    # print(f'Random seed :{seed}')
+    # torch.manual_seed(seed)
+    # torch.cuda.manual_seed_all(seed)
+    # torch.backends.cudnn.benchmark = True
     parser =ArgumentParser(description='Basic paser')
     parser.add_argument('--config_path', type=str, help='Path to the configuration file')
     parser.add_argument('--log', action='store_true', help='Turn on the wandb')

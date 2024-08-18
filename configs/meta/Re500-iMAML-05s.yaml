@@ -41,7 +41,7 @@ train:
   inner_steps: 5
   reg_params: 2.0
 
-  #ckpt: 'Data-n-model\PINO-baseline.pt'
+  ckpt: 'Data-n-model\PINO-baseline.pt'
 
 test:
   batchsize: 8
