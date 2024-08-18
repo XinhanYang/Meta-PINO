@@ -154,7 +154,8 @@ def count_params(net):
 
 
 def save_checkpoint(path, name, model, optimizer=None):
-    ckpt_dir = 'checkpoints/%s/' % path
+    # ckpt_dir = 'checkpoints/%s/' % path
+    ckpt_dir = '%s/' % path
     if not os.path.exists(ckpt_dir):
         os.makedirs(ckpt_dir)
     try:
