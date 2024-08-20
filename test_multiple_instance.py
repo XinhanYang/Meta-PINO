@@ -187,7 +187,6 @@ def test(meta_net, loader, test_loader, config, rank, forcing, use_tqdm=True):
 
             total_loss = loss_l2 * xy_weight + loss_f * f_weight + loss_ic * ic_weight
 
-            # 记录初始误差
             all_loss_logs['total_loss'][0] += total_loss.item()
             all_loss_logs['loss_l2'][0] += loss_l2.item()
             all_loss_logs['loss_ic'][0] += loss_ic.item()
@@ -200,9 +199,6 @@ def test(meta_net, loader, test_loader, config, rank, forcing, use_tqdm=True):
                 gamma=config['train']['scheduler_gamma']
             )
 
-
-
-            # 训练单个数据点的模型
             error_log = {
                 'total_loss': [],
                 'loss_l2': [],

@@ -157,13 +157,16 @@ def mixed_train(model,              # model of neural operator
                 group='FDM',        # group name
                 tags=['Nan'],       # tags
                 use_tqdm=True):     # turn on tqdm
-    if wandb and log:
-        run = wandb.init(project=project,
-                         entity=config['log']['entity'],
-                         group=group,
-                         config=config,
-                         tags=tags, reinit=True,
-                         settings=wandb.Settings(start_method="fork"))
+     
+    log_file = config['log']['logfile'] 
+    cumulative_time = 0  # Initialize cumulative time
+
+    # 如果日志文件不存在，初始化日志文件并写入表头
+    if not os.path.exists(log_file):
+        with open(log_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Epoch', 'Train IC Loss', 'Train F Loss', 'Train Loss', 'Test L2 Error', 'Epoch Time', 'Cumulative Time'])
+
 
     # data parameters
     v = 1 / config['data']['Re']
@@ -257,23 +260,15 @@ def mixed_train(model,              # model of neural operator
                     f'Eqn loss: {err_eqn:.5f}'
                 )
             )
-        if wandb and log:
-            wandb.log(
-                {
-                    'Data f error': train_f,
-                    'Data IC L2 error': train_ic,
-                    'Data train loss': train_loss,
-                    'Data L2 error': test_l2,
-                    'Random IC Train equation loss': err_eqn,
-                    'Time cost': t2 - t1
-                }
-            )
+        epoch_time = time() - t1
+        cumulative_time += epoch_time
+        with open(log_file, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([ep, train_ic, train_f, train_loss, test_l2, str(timedelta(seconds=epoch_time)), str(timedelta(seconds=cumulative_time))])
 
     save_checkpoint(config['train']['save_dir'],
                     config['train']['save_name'],
                     model, optimizer)
-    if wandb and log:
-        run.finish()
 
 
 def progressive_train(model,
