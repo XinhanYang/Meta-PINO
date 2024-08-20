@@ -1,7 +1,7 @@
 data:
-  datapath: '/mnt/md1/zongyi/NS_fft_Re500_T4000.npy'
+  datapath: 'Data-n-model\Dataset\NS-Re500_T500_id0.npy'
   Re: 500
-  total_num: 4000
+  total_num: 500
   offset: 0
   n_sample: 400
   time_interval: 0.5
@@ -20,10 +20,11 @@ model:
   modes2: [8, 8, 8, 8]
   modes3: [8, 8, 8, 8]
   fc_dim: 128
+  act: gelu
 
 train:
   batchsize: 1
-  epochs: 40000
+  epochs: 5000
   milestones: [10000, 20000, 30000]
   base_lr: 0.001
   scheduler_gamma: 0.5
@@ -38,5 +39,6 @@ train:
 log:
   project: 'PINO-pretrain-ICLR'
   group: 'Re500-05s-4C4'
+  logfile: 'log\PINO-withRFIC-5000epoch'
 
 
