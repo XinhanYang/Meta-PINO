@@ -213,10 +213,12 @@ def train(meta_net,
                     out_instance = meta_net(x_in).reshape(1, S, S, T + 5)
                     out = out_instance[..., :-5]
 
+                    loss_l2 = loss_fn(out.view(1, S, S, T), y_instance.view(1, S, S, T))
                     loss_ic, loss_f = PINO_loss3d(out.view(1, S, S, T), x_instance, forcing, v, t_interval)
 
                     total_loss = loss_f * inner_f_weight + loss_ic * inner_ic_weight
                     
+                    instance_inner_losses['loss_l2'][inner_iter] += loss_l2.item()
                     instance_inner_losses['loss_ic'][inner_iter] += loss_ic.item()
                     instance_inner_losses['loss_f'][inner_iter] += loss_f.item()
                     instance_inner_losses['total_loss'][inner_iter] += total_loss.item()
@@ -237,8 +239,6 @@ def train(meta_net,
                 loss_dict['loss_l2'] += loss_l2
                 loss_dict['loss_f'] += loss_f
                 loss_dict['loss_ic'] += loss_ic
-
-                instance_inner_losses['loss_l2'] += loss_l2.item()
 
                 torchopt.recover_state_dict(meta_net, net_state_dict)
                 torchopt.recover_state_dict(inner_opt, optim_state_dict)
@@ -272,9 +272,11 @@ def train(meta_net,
             f'avg_loss_f_iter_{i+1}': instance_inner_losses['loss_f'][i] / (len(train_loader) * batch_size)
             for i in range(n_inner_iter)
         })
-        avg_instance_loss['avg_loss_l2'] = instance_inner_losses['loss_l2'] / (len(train_loader) * batch_size)
-
-
+        avg_instance_loss.update({
+            f'avg_loss_l2_iter_{i+1}': instance_inner_losses['loss_l2'][i] / (len(train_loader) * batch_size)
+            for i in range(n_inner_iter)
+        })
+        
         # Log dictionary structured for JSON
         log_dict = {
             'epoch': ep + 1,
