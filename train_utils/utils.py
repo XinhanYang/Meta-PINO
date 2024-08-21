@@ -176,7 +176,8 @@ def save_checkpoint(path, name, model, optimizer=None):
 
 
 def save_checkpoint_meta(epoch, path, name, model, optimizer=None):
-    ckpt_dir = 'checkpoints/%s/' % path
+    # ckpt_dir = 'checkpoints/%s/' % path
+    ckpt_dir = '%s/' % path
     if not os.path.exists(ckpt_dir):
         os.makedirs(ckpt_dir)
     try:
