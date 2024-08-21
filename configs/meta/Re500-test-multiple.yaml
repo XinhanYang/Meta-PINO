@@ -1,6 +1,6 @@
 data:
   seed: 1234
-  datapath: 'Data-n-model\NS-Re500_T500_id0.npy'
+  datapath: 'Data-n-model\Dataset\NS-Re500_T500_id0.npy'
   Re: 500
   total_num: 100
   offset: 0
@@ -21,21 +21,21 @@ model:
   fc_dim: 64
 
 train:
-  batchsize: 8
-  epochs: 100
-  milestones: [500]
+  batchsize: 1
+  epochs: 1000
+  milestones: [1000]
   inner_lr: 0.001
   scheduler_gamma: 0.5
-  ic_loss: 1.0
+  ic_loss: 10.0
   f_loss: 1.0
   xy_loss: 0
 
-  ckpt: 'Data-n-model\PINO-iMAML-Re500-05s_64_32.pt'
+  ckpt: 'Data-n-model\pretrained-model\PINO-half-90.pt'
 
 test:
-  batchsize: 8
+  batchsize: 2
 
 log:
   project: 'PINO-meta'
   group: 'Re500-05s-meta'
-  logfile: 'log\PINO-maml-finetune-100epoch'
+  logfile: 'log\PINO-half-90-1000epoch'

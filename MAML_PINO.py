@@ -187,6 +187,12 @@ def train(meta_net,
        
         inner_opt = torchopt.MetaAdam(meta_net, lr=inner_lr)
 
+        instance_inner_losses = {'total_loss': [0.0] * n_inner_iter,
+                             'loss_ic': [0.0] * n_inner_iter,
+                             'loss_f': [0.0] * n_inner_iter,
+                             'loss_l2': 0.0 * n_inner_iter}
+
+
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(rank), y_batch.to(rank)
 
@@ -203,7 +209,7 @@ def train(meta_net,
                 x_in = F.pad(x_instance, (0, 0, 0, 5), "constant", 0)
                 x_instance = x_instance[:, :, :, 0, -1]
 
-                for _ in range(n_inner_iter):
+                for inner_iter  in range(n_inner_iter):
                     out_instance = meta_net(x_in).reshape(1, S, S, T + 5)
                     out = out_instance[..., :-5]
 
@@ -211,6 +217,10 @@ def train(meta_net,
 
                     total_loss = loss_f * inner_f_weight + loss_ic * inner_ic_weight
                     
+                    instance_inner_losses['loss_ic'][inner_iter] += loss_ic.item()
+                    instance_inner_losses['loss_f'][inner_iter] += loss_f.item()
+                    instance_inner_losses['total_loss'][inner_iter] += total_loss.item()
+
                     inner_opt.step(total_loss)
                 
                 out_instance = meta_net(x_in).reshape(1, S, S, T + 5)
@@ -227,6 +237,8 @@ def train(meta_net,
                 loss_dict['loss_l2'] += loss_l2
                 loss_dict['loss_f'] += loss_f
                 loss_dict['loss_ic'] += loss_ic
+
+                instance_inner_losses['loss_l2'] += loss_l2.item()
 
                 torchopt.recover_state_dict(meta_net, net_state_dict)
                 torchopt.recover_state_dict(inner_opt, optim_state_dict)
@@ -248,13 +260,33 @@ def train(meta_net,
         loss_f = loss_reduced['loss_f'].item() / (len(train_loader)*batch_size)
         total_loss = loss_reduced['total_loss'].item() / (len(train_loader)*batch_size)
         loss_l2 = loss_reduced['loss_l2'].item() / (len(train_loader)*batch_size)
+        avg_instance_loss = {
+            f'avg_total_loss_iter_{i+1}': instance_inner_losses['total_loss'][i] / (len(train_loader) * batch_size)
+            for i in range(n_inner_iter)
+        }
+        avg_instance_loss.update({
+            f'avg_loss_ic_iter_{i+1}': instance_inner_losses['loss_ic'][i] / (len(train_loader) * batch_size)
+            for i in range(n_inner_iter)
+        })
+        avg_instance_loss.update({
+            f'avg_loss_f_iter_{i+1}': instance_inner_losses['loss_f'][i] / (len(train_loader) * batch_size)
+            for i in range(n_inner_iter)
+        })
+        avg_instance_loss['avg_loss_l2'] = instance_inner_losses['loss_l2'] / (len(train_loader) * batch_size)
+
+
+        # Log dictionary structured for JSON
         log_dict = {
-            'Train f error': loss_f,
-            'Train L2 error': loss_ic,
-            'Total loss': total_loss,
-            'Train L2 error': loss_l2
-            }
-        
+            'epoch': ep + 1,
+            'train_total_loss': total_loss,
+            'train_l2_error': loss_l2,
+            'train_ic_loss': loss_ic,
+            'train_f_loss': loss_f,
+            'avg_instance_losses': avg_instance_loss,
+            'epoch_time': str(timedelta(seconds=epoch_time)),
+            'cumulative_time': str(timedelta(seconds=cumulative_time))
+        }
+
         if rank == 0:
             if use_tqdm:
                 pbar.set_description(
@@ -265,17 +297,10 @@ def train(meta_net,
                     )
                 )
 
+                
             with open(log_file, 'a') as f:
-                print(
-                f"Epoch: {ep+1}; ",
-                f"Train total Loss: {total_loss:.5f}; ",
-                f"Train data L2 Error: {loss_l2:.5f}; ",
-                f"Train IC Loss: {loss_ic:.5f}; ",
-                f"Train F Loss: {loss_f:.5f}; ",
-                f"Epoch Time: {str(timedelta(seconds=epoch_time))}; ",
-                f"Cumulative Time: {str(timedelta(seconds=cumulative_time))}",
-                file=f
-            )
+                f.write(json.dumps(log_dict, indent=4) + '\n')
+
         if wandb and log:
             wandb.log(log_dict)
 

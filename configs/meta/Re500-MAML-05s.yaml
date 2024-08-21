@@ -1,6 +1,6 @@
 data:
   seed: 1234
-  datapath: 'Data-n-model\NS-Re500_T500_id0.npy'
+  datapath: 'Data-n-model\Dataset\NS-Re500_T500_id0.npy'
   Re: 500
   total_num: 100
   offset: 0
@@ -30,7 +30,7 @@ train:
   data_loss: 5.0
   ic_loss: 1.0
   f_loss: 1.0
-  inner_ic_loss: 1.0
+  inner_ic_loss: 10.0
   inner_f_loss: 1.0
   save_dir: 'Re500-F'
   save_name: 'PINO-MAML-Re500-05s_64_32.pt'
@@ -43,7 +43,7 @@ train:
   ckpt: 'Data-n-model\PINO-baseline.pt'
 
 test:
-  batchsize: 8
+  batchsize: 2
 
 log:
   project: 'PINO-maml-meta'
