@@ -173,6 +173,8 @@ def train(meta_net,
             # Convert config dictionary to a pretty-printed string and write it to the file
             config_str = json.dumps(config, indent=4)
             print(f"Configuration:\n{config_str}\n", file=f)
+    
+    min_l2_loss = 1000
 
     for ep in pbar:
         epoch_start_time = time()  # Start time for the epoch
@@ -306,7 +308,8 @@ def train(meta_net,
         if wandb and log:
             wandb.log(log_dict)
 
-        if rank == 0:
+        if rank == 0 and loss_l2 < min_l2_loss:
+            min_l2_loss = loss_l2
             save_checkpoint_meta(ep,
                 config['train']['save_dir'],
                 config['train']['save_name'],
