@@ -190,7 +190,7 @@ def train(meta_net,
         instance_inner_losses = {'total_loss': [0.0] * n_inner_iter,
                              'loss_ic': [0.0] * n_inner_iter,
                              'loss_f': [0.0] * n_inner_iter,
-                             'loss_l2': 0.0 * n_inner_iter}
+                             'loss_l2': [0.0] * n_inner_iter}
 
 
         for x_batch, y_batch in train_loader:
