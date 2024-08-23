@@ -211,7 +211,7 @@ def train(meta_net,
                 x_in = F.pad(x_instance, (0, 0, 0, 5), "constant", 0)
                 x_instance = x_instance[:, :, :, 0, -1]
 
-                for inner_iter  in range(n_inner_iter):
+                for inner_iter in range(n_inner_iter):
                     out_instance = meta_net(x_in).reshape(1, S, S, T + 5)
                     out = out_instance[..., :-5]
 
@@ -226,6 +226,9 @@ def train(meta_net,
                     instance_inner_losses['total_loss'][inner_iter] += total_loss.item()
 
                     inner_opt.step(total_loss)
+
+                    if inner_iter == 1:
+                        total_losses += loss_l2
                 
                 out_instance = meta_net(x_in).reshape(1, S, S, T + 5)
                 out = out_instance[..., :-5]

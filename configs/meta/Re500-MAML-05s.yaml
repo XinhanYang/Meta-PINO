@@ -21,19 +21,19 @@ model:
   fc_dim: 64
   
 train:
-  batchsize: 8
+  batchsize: 2
   epochs: 400
   milestones: [200]
-  meta_lr: 0.001
+  meta_lr: 0.0005
   inner_lr: 0.001
   scheduler_gamma: 0.5
-  data_loss: 5.0
-  ic_loss: 1.0
-  f_loss: 1.0
+  data_loss: 1.0
+  ic_loss: 0.0
+  f_loss: 0.0
   inner_ic_loss: 10.0
   inner_f_loss: 1.0
   save_dir: 'Re500-F'
-  save_name: 'PINO-MAML-Re500-05s_64_32.pt'
+  save_name: 'PINO-MAML-Re500-05s_64_32-test.pt'
   data_iter: 0     # number of update steps on data for each epoch
   eqn_iter: 1       # number of update steps on virtual PDE for each epoch
 
