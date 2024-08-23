@@ -228,7 +228,7 @@ def train(meta_net,
                     inner_opt.step(total_loss)
 
                     if inner_iter == 1:
-                        total_losses += total_loss
+                        total_losses += loss_l2
                 
                 out_instance = meta_net(x_in).reshape(1, S, S, T + 5)
                 out = out_instance[..., :-5]
