@@ -252,8 +252,10 @@ def train(meta_net,
 
             total_losses.backward()
             meta_opt.step()
+
+            del out_instance, out, loss_l2, loss_ic, loss_f, total_loss, total_losses
             torch.cuda.empty_cache()
-            
+
         epoch_time = time() - epoch_start_time
         cumulative_time += epoch_time
 
