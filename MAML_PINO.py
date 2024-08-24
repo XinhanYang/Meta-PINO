@@ -227,6 +227,8 @@ def train(meta_net,
 
                     inner_opt.step(total_loss)
 
+                    torch.cuda.empty_cache()
+
                     if inner_iter == 1:
                         total_losses += loss_l2
                 
@@ -250,7 +252,8 @@ def train(meta_net,
 
             total_losses.backward()
             meta_opt.step()
-        
+            torch.cuda.empty_cache()
+            
         epoch_time = time() - epoch_start_time
         cumulative_time += epoch_time
 
