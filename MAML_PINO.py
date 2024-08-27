@@ -253,6 +253,8 @@ def train(meta_net,
             total_losses.backward()
             meta_opt.step()
 
+            del x_batch, y_batch, x_instance, y_instance, x_in
+            del net_state_dict, optim_state_dict
             del out_instance, out, loss_l2, loss_ic, loss_f, total_loss, total_losses
             torch.cuda.empty_cache()
 
