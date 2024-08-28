@@ -262,6 +262,8 @@ def train(meta_net,
             # Convert config dictionary to a pretty-printed string and write it to the file
             config_str = json.dumps(config, indent=4)
             print(f"Configuration:\n{config_str}\n", file=f)
+    
+    min_l2_loss = 1000
 
     for ep in pbar:
         epoch_start_time = time()  # Start time for the epoch
@@ -339,10 +341,13 @@ def train(meta_net,
         total_loss = loss_reduced['total_loss'].item() / (len(train_loader)*batch_size)
         loss_l2 = loss_reduced['loss_l2'].item() / (len(train_loader)*batch_size)
         log_dict = {
-            'Train f error': loss_f,
-            'Train L2 error': loss_ic,
-            'Total loss': total_loss,
-            'Train L2 error': loss_l2
+            'epoch': ep + 1,
+            'train_total_loss': total_loss,
+            'train_l2_error': loss_l2,
+            'train_ic_loss': loss_ic,
+            'train_f_loss': loss_f,
+            'epoch_time': str(timedelta(seconds=epoch_time)),
+            'cumulative_time': str(timedelta(seconds=cumulative_time))
             }
         
         if rank == 0:
@@ -356,20 +361,13 @@ def train(meta_net,
                 )
 
             with open(log_file, 'a') as f:
-                print(
-                f"Epoch: {ep+1}; ",
-                f"Train total Loss: {total_loss:.5f}; ",
-                f"Train data L2 Error: {loss_l2:.5f}; ",
-                f"Train IC Loss: {loss_ic:.5f}; ",
-                f"Train F Loss: {loss_f:.5f}; ",
-                f"Epoch Time: {str(timedelta(seconds=epoch_time))}; ",
-                f"Cumulative Time: {str(timedelta(seconds=cumulative_time))}",
-                file=f
-            )
+                f.write(json.dumps(log_dict, indent=4) + '\n')
+
         if wandb and log:
             wandb.log(log_dict)
 
-        if rank == 0:
+        if rank == 0 and loss_l2 < min_l2_loss:
+            min_l2_loss = loss_l2
             save_checkpoint_meta(ep,
                 config['train']['save_dir'],
                 config['train']['save_name'],
