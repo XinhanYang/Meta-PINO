@@ -73,13 +73,30 @@ class InnerNet(
         self.v = v
         self.ic_weight = inner_ic_weight
         self.f_weight = inner_f_weight
+        self.current_iter = 0  # Initialize the inner loop counter
         self.reset_parameters()
+
+        self.instance_inner_losses = {
+            'loss_l2': [0.0] * n_inner_iter,
+            'loss_ic': [0.0] * n_inner_iter,
+            'loss_f': [0.0] * n_inner_iter,
+            'regularization_loss': [0.0] * n_inner_iter,
+            'total_loss': [0.0] * n_inner_iter,
+        }
 
     def reset_parameters(self):
         with torch.no_grad():
             for p1, p2 in zip(self.parameters(), self.meta_parameters()):
                 p1.data.copy_(p2.data)
                 p1.detach_().requires_grad_()
+        
+        self.instance_inner_losses = {
+            'loss_l2': [0.0] * self.n_inner_iter,
+            'loss_ic': [0.0] * self.n_inner_iter,
+            'loss_f': [0.0] * self.n_inner_iter,
+            'regularization_loss': [0.0] * self.n_inner_iter,
+            'total_loss': [0.0] * self.n_inner_iter,
+        }
 
     def forward(self, x):
         x = F.pad(x, (0, 0, 0, 5), "constant", 0)
@@ -93,12 +110,20 @@ class InnerNet(
         loss_ic, loss_f = PINO_loss3d(out.view(1, self.S, self.S, self.T), x, self.forcing, self.v, self.t_interval)
 
         total_loss = loss_f * self.f_weight + loss_ic * self.ic_weight
+        loss_l2 = self.loss_fn(out.view(1, self.S, self.S, self.T), y.view(1, self.S, self.S, self.T))
 
         regularization_loss = 0
         for p1, p2 in zip(self.parameters(), self.meta_parameters()):
             diff = p1 - p2
             diff_norm = torch.norm(diff)
             regularization_loss += 0.5 * self.reg_param * diff_norm**2
+
+        self.instance_inner_losses['loss_ic'][self.current_iter] += loss_ic.item()
+        self.instance_inner_losses['loss_f'][self.current_iter] += loss_f.item()
+        self.instance_inner_losses['loss_l2'][self.current_iter] += loss_l2.item()
+        self.instance_inner_losses['total_loss'][self.current_iter] += total_loss.item()
+        self.instance_inner_losses['regularization_loss'][self.current_iter] += regularization_loss.item()
+
         return total_loss + regularization_loss
 
     def solve(self, x, y):
@@ -106,7 +131,7 @@ class InnerNet(
         inner_optim = torchopt.Adam(params, betas=(0.9, 0.999), lr=self.inner_lr)
         with torch.enable_grad():
             # Temporarily enable gradient computation for conducting the optimization
-            for _ in range(self.n_inner_iter):
+            for self.current_iter in range(self.n_inner_iter):
                 loss = self.objective(x, y)
                 inner_optim.zero_grad()
                 loss.backward(inputs=params)
@@ -275,6 +300,15 @@ def train(meta_net,
         if rank == 0 and profile:
                 torch.cuda.synchronize()
                 t1 = default_timer()
+
+        inner_loss_dict = {
+            'loss_l2': [0.0] * n_inner_iter,
+            'loss_ic': [0.0] * n_inner_iter,
+            'loss_f': [0.0] * n_inner_iter,
+            'regularization_loss': [0.0] * n_inner_iter,
+            'total_loss': [0.0] * n_inner_iter,
+        }
+
         
         inner_nets = [InnerNet(meta_net,
             loss_fn,
@@ -322,6 +356,13 @@ def train(meta_net,
                 loss_dict['loss_f'] += loss_f
                 loss_dict['loss_ic'] += loss_ic
 
+                for j in range(n_inner_iter):
+                    inner_loss_dict['loss_l2'][j] += inner_net.instance_inner_losses['loss_l2'][j]
+                    inner_loss_dict['loss_ic'][j] += inner_net.instance_inner_losses['loss_ic'][j]
+                    inner_loss_dict['loss_f'][j] += inner_net.instance_inner_losses['loss_f'][j]
+                    inner_loss_dict['regularization_loss'][j] += inner_net.instance_inner_losses['regularization_loss'][j]
+                    inner_loss_dict['total_loss'][j] += inner_net.instance_inner_losses['total_loss'][j]
+
             total_losses /= batch_size
             total_losses.backward()
             meta_opt.step()
@@ -340,15 +381,38 @@ def train(meta_net,
         loss_f = loss_reduced['loss_f'].item() / (len(train_loader)*batch_size)
         total_loss = loss_reduced['total_loss'].item() / (len(train_loader)*batch_size)
         loss_l2 = loss_reduced['loss_l2'].item() / (len(train_loader)*batch_size)
-        log_dict = {
+
+        avg_instance_loss = {
+            f'avg_total_loss_iter_{j+1}': inner_loss_dict['total_loss'][j] / (len(train_loader) * batch_size)
+            for j in range(n_inner_iter)
+        }
+        avg_instance_loss.update({
+            f'avg_loss_ic_iter_{j+1}': inner_loss_dict['loss_ic'][j] / (len(train_loader) * batch_size)
+            for j in range(n_inner_iter)
+        })
+        avg_instance_loss.update({
+            f'avg_loss_f_iter_{j+1}': inner_loss_dict['loss_f'][j] / (len(train_loader) * batch_size)
+            for j in range(n_inner_iter)
+        })
+        avg_instance_loss.update({
+            f'avg_regularization_loss_iter_{j+1}': inner_loss_dict['regularization_loss'][j] / (len(train_loader) * batch_size)
+            for j in range(n_inner_iter)
+        })
+        avg_instance_loss.update({
+            f'avg_loss_l2_iter_{j+1}': inner_loss_dict['loss_l2'][j] / (len(train_loader) * batch_size)
+            for j in range(n_inner_iter)
+        })
+
+        log_dict.update({
             'epoch': ep + 1,
             'train_total_loss': total_loss,
             'train_l2_error': loss_l2,
             'train_ic_loss': loss_ic,
             'train_f_loss': loss_f,
+            'avg_instance_losses': avg_instance_loss,
             'epoch_time': str(timedelta(seconds=epoch_time)),
             'cumulative_time': str(timedelta(seconds=cumulative_time))
-            }
+        })
         
         if rank == 0:
             if use_tqdm:
