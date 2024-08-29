@@ -1,10 +1,10 @@
 data:
   seed: 1234
-  datapath: 'Data-n-model\Dataset\NS-Re500_T500_id0.npy'
+  datapath: 'Data-n-model\NS-Re500_T500_id0.npy'
   Re: 500
-  total_num: 10
+  total_num: 100
   offset: 0
-  n_sample: 10
+  n_sample: 100
   time_interval: 0.5
   nx: 64
   nt: 64
@@ -14,15 +14,15 @@ data:
   test_ratio: 0.1
 
 model:
-  layers: [16, 16, 16, 16, 16]
-  modes1: [2, 2, 2, 2]
-  modes2: [2, 2, 2, 2]
-  modes3: [2, 2, 2, 2]
-  fc_dim: 32
+  layers: [32, 32, 32 ,32, 32]
+  modes1: [4, 4, 4, 4]
+  modes2: [4, 4, 4, 4]
+  modes3: [4, 4, 4, 4]
+  fc_dim: 64
 
 train:
-  batchsize: 2
-  epochs: 10
+  batchsize: 8
+  epochs: 50
   milestones: [200]
   meta_lr: 0.0005
   inner_lr: 0.001
@@ -37,7 +37,7 @@ train:
   data_iter: 0     # number of update steps on data for each epoch
   eqn_iter: 1       # number of update steps on virtual PDE for each epoch
 
-  inner_steps: 5
+  inner_steps: 150
   reg_params: 2.0
 
   ckpt: 'Data-n-model\1PINO-baseline.pt'
