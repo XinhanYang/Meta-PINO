@@ -309,9 +309,9 @@ def train(meta_net,
             'loss_ic': [0.0] * n_inner_iter,
             'loss_f': [0.0] * n_inner_iter,
             'regularization_loss': [0.0] * n_inner_iter,
+            'pinn_loss': [0.0] * n_inner_iter,
             'total_loss': [0.0] * n_inner_iter,
         }
-
         
         inner_nets = [InnerNet(meta_net,
             loss_fn,
@@ -364,6 +364,7 @@ def train(meta_net,
                     inner_loss_dict['loss_ic'][j] += inner_net.instance_inner_losses['loss_ic'][j]
                     inner_loss_dict['loss_f'][j] += inner_net.instance_inner_losses['loss_f'][j]
                     inner_loss_dict['regularization_loss'][j] += inner_net.instance_inner_losses['regularization_loss'][j]
+                    inner_loss_dict['pinn_loss'][j] += inner_net.instance_inner_losses['pinn_loss'][j]
                     inner_loss_dict['total_loss'][j] += inner_net.instance_inner_losses['total_loss'][j]
 
             total_losses /= batch_size
@@ -399,6 +400,10 @@ def train(meta_net,
         })
         avg_instance_loss.update({
             f'avg_regularization_loss_iter_{j+1}': inner_loss_dict['regularization_loss'][j] / (len(train_loader) * batch_size)
+            for j in range(n_inner_iter)
+        })
+        avg_instance_loss.update({
+            f'avg_pinn_loss_iter_{j+1}': inner_loss_dict['pinn_loss'][j] / (len(train_loader) * batch_size)
             for j in range(n_inner_iter)
         })
         avg_instance_loss.update({
