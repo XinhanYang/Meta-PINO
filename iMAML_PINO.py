@@ -77,11 +77,12 @@ class InnerNet(
         self.reset_parameters()
 
         self.instance_inner_losses = {
-            'loss_l2': [0.0] * n_inner_iter,
-            'loss_ic': [0.0] * n_inner_iter,
-            'loss_f': [0.0] * n_inner_iter,
-            'regularization_loss': [0.0] * n_inner_iter,
-            'total_loss': [0.0] * n_inner_iter,
+            'loss_l2': [0.0] * self.n_inner_iter,
+            'loss_ic': [0.0] * self.n_inner_iter,
+            'loss_f': [0.0] * self.n_inner_iter,
+            'pinn_loss' : [0.0] * self.n_inner_iter,
+            'regularization_loss': [0.0] * self.n_inner_iter,
+            'total_loss': [0.0] * self.n_inner_iter,
         }
 
     def reset_parameters(self):
@@ -94,6 +95,7 @@ class InnerNet(
             'loss_l2': [0.0] * self.n_inner_iter,
             'loss_ic': [0.0] * self.n_inner_iter,
             'loss_f': [0.0] * self.n_inner_iter,
+            'pinn_loss' : [0.0] * self.n_inner_iter,
             'regularization_loss': [0.0] * self.n_inner_iter,
             'total_loss': [0.0] * self.n_inner_iter,
         }
@@ -109,7 +111,7 @@ class InnerNet(
     
         loss_ic, loss_f = PINO_loss3d(out.view(1, self.S, self.S, self.T), x, self.forcing, self.v, self.t_interval)
 
-        total_loss = loss_f * self.f_weight + loss_ic * self.ic_weight
+        pinn_loss = loss_f * self.f_weight + loss_ic * self.ic_weight
         loss_l2 = self.loss_fn(out.view(1, self.S, self.S, self.T), y.view(1, self.S, self.S, self.T))
 
         regularization_loss = 0
@@ -118,13 +120,14 @@ class InnerNet(
             diff_norm = torch.norm(diff)
             regularization_loss += 0.5 * self.reg_param * diff_norm**2
 
+        total_loss = pinn_loss + regularization_loss
         self.instance_inner_losses['loss_ic'][self.current_iter] += loss_ic.item()
         self.instance_inner_losses['loss_f'][self.current_iter] += loss_f.item()
         self.instance_inner_losses['loss_l2'][self.current_iter] += loss_l2.item()
+        self.instance_inner_losses['pinn_loss'][self.current_iter] += pinn_loss.item()
         self.instance_inner_losses['total_loss'][self.current_iter] += total_loss.item()
         self.instance_inner_losses['regularization_loss'][self.current_iter] += regularization_loss.item()
-
-        return total_loss + regularization_loss
+        return total_loss
 
     def solve(self, x, y):
         params = tuple(self.parameters())
