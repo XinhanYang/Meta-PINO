@@ -4,6 +4,12 @@ from tqdm import tqdm
 from .utils import save_checkpoint
 from .losses import LpLoss, darcy_loss, PINO_loss
 
+import csv
+from time import time
+from datetime import timedelta
+import os
+from timeit import default_timer
+
 try:
     import wandb
 except ImportError:
@@ -132,6 +138,15 @@ def train_2d_burger(model,
                          config=config,
                          tags=tags, reinit=True,
                          settings=wandb.Settings(start_method="fork"))
+        
+    
+    log_file = config['log']['logfile'] 
+    cumulative_time = 0  # Initialize cumulative time
+
+    if not os.path.exists(log_file):
+        with open(log_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Epoch', 'Train IC Loss', 'Train F Loss', 'Train Loss', 'Test L2 Error', 'Epoch Time', 'Cumulative Time'])
 
     data_weight = config['train']['xy_loss']
     f_weight = config['train']['f_loss']
@@ -144,7 +159,12 @@ def train_2d_burger(model,
 
     for e in pbar:
         model.train()
+
+        t1 = default_timer()
+
         train_pino = 0.0
+        train_ic_loss = 0.0
+        train_f_loss = 0.0
         data_l2 = 0.0
         train_loss = 0.0
 
@@ -161,20 +181,30 @@ def train_2d_burger(model,
             optimizer.step()
 
             data_l2 += data_loss.item()
-            train_pino += loss_f.item()
+            train_ic_loss += loss_u.item()
+            train_f_loss += loss_f.item()
             train_loss += total_loss.item()
         scheduler.step()
         data_l2 /= len(train_loader)
-        train_pino /= len(train_loader)
+        train_ic_loss /= len(train_loader)
+        train_f_loss /= len(train_loader)
         train_loss /= len(train_loader)
         if use_tqdm:
             pbar.set_description(
                 (
                     f'Epoch {e}, train loss: {train_loss:.5f} '
-                    f'train f error: {train_pino:.5f}; '
+                    f'train f error: {train_f_loss:.5f} '
+                    f'train ic error: {train_ic_loss:.5f} '
                     f'data l2 error: {data_l2:.5f}'
                 )
             )
+
+        epoch_time = time() - t1
+        cumulative_time += epoch_time
+        with open(log_file, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([e, train_ic_loss, train_f_loss, train_loss, data_l2, str(timedelta(seconds=epoch_time)), str(timedelta(seconds=cumulative_time))])
+
         if wandb and log:
             wandb.log(
                 {

@@ -112,6 +112,31 @@ class BurgersLoader(object):
         else:
             loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
         return loader
+    
+    def split_dataset(self, n_sample, start=0, test_ratio=0.1):
+        dataset = self.make_dataset(n_sample, start)
+        test_size = int(n_sample * test_ratio)
+        train_size = n_sample - test_size
+        train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
+        return train_dataset, test_dataset
+
+    def make_dataset(self, n_sample, start=0):
+        Xs = self.x_data[start:start + n_sample]
+        ys = self.y_data[start:start + n_sample]
+
+        if self.new:
+            gridx = torch.tensor(np.linspace(0, 1, self.s + 1)[:-1], dtype=torch.float)
+            gridt = torch.tensor(np.linspace(0, 1, self.T), dtype=torch.float)
+        else:
+            gridx = torch.tensor(np.linspace(0, 1, self.s), dtype=torch.float)
+            gridt = torch.tensor(np.linspace(0, 1, self.T + 1)[1:], dtype=torch.float)
+        gridx = gridx.reshape(1, 1, self.s)
+        gridt = gridt.reshape(1, self.T, 1)
+
+        Xs = Xs.reshape(n_sample, 1, self.s).repeat([1, self.T, 1])
+        Xs = torch.stack([Xs, gridx.repeat([n_sample, self.T, 1]), gridt.repeat([n_sample, 1, self.s])], dim=3)
+        dataset = torch.utils.data.TensorDataset(Xs, ys)
+        return dataset
 
 
 class NSLoader(object):
