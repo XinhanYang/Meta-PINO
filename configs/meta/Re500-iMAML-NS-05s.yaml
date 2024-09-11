@@ -1,10 +1,10 @@
 data:
   seed: 1234
-  datapath: 'Data-n-model\NS-Re500_T500_id0.npy'
+  datapath: 'D:\Github\physics_informed\Data-n-model\Dataset\NS-Re500_T500_id0.npy'
   Re: 500
-  total_num: 100
+  total_num: 5
   offset: 0
-  n_sample: 100
+  n_sample: 5
   time_interval: 0.5
   nx: 64
   nt: 64
@@ -14,14 +14,14 @@ data:
   test_ratio: 0.1
 
 model:
-  layers: [32, 32, 32 ,32, 32]
-  modes1: [4, 4, 4, 4]
-  modes2: [4, 4, 4, 4]
-  modes3: [4, 4, 4, 4]
-  fc_dim: 64
+  layers: [16, 16, 16, 16, 16]
+  modes1: [2, 2 ,2, 2]
+  modes2: [2, 2 ,2, 2]
+  modes3: [2, 2 ,2, 2]
+  fc_dim: 32
 
 train:
-  batchsize: 8
+  batchsize: 2
   epochs: 50
   milestones: [200]
   meta_lr: 0.0005
@@ -30,20 +30,20 @@ train:
   data_loss: 1.0
   ic_loss: 0.0
   f_loss: 0.0
-  inner_ic_loss: 10.0
-  inner_f_loss: 1.0
+  inner_ic_loss: 0.1
+  inner_f_loss: 0.01
   save_dir: 'Re500-F'
   save_name: 'PINO-iMAML-test.pt'
   data_iter: 0     # number of update steps on data for each epoch
   eqn_iter: 1       # number of update steps on virtual PDE for each epoch
 
-  inner_steps: 150
-  reg_params: 2.0
+  inner_steps: 100
+  reg_params: 10.0
 
   ckpt: 'Data-n-model\1PINO-baseline.pt'
 
 test:
-  batchsize: 8
+  batchsize: 4
 
 log:
   project: 'PINO-iMAML-meta'

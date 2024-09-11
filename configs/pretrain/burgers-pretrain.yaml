@@ -1,9 +1,9 @@
 data:
   name: Burgers
-  datapath: '../data/burgers.mat'
+  datapath: 'D:\Github\physics_informed\Data-n-model\Dataset\burgers.mat'
   total_num: 1000
   offset: 0
-  n_sample: 800
+  n_sample: 500
   nx: 128
   nt: 100
   sub: 1
@@ -18,19 +18,23 @@ model:
   num_pad: 4
 
 train:
-  batchsize: 20
+  batchsize: 16
   epochs: 500
   milestones: [150, 300, 450]
   base_lr: 0.001
   scheduler_gamma: 0.5
-  ic_loss: 10.0
+  # ic_loss: 10.0
+  # f_loss: 1.0
+  # xy_loss: 0.0
+  ic_loss: 1.0
   f_loss: 1.0
-  xy_loss: 0.0
-  save_dir: 'burgers-FDM'
+  xy_loss: 5.0
+  save_dir: 'Re500-FDM'
   save_name: 'burgers-pretrain-eqn.pt'
 
 log:
   project: PINO-burgers-pretrain
   group: gelu-eqn
   entity: hzzheng-pino
+  logfile: "log/PINO-burgers-pretrain.log"
 

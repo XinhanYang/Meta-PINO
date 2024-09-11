@@ -161,7 +161,6 @@ def mixed_train(model,              # model of neural operator
     log_file = config['log']['logfile'] 
     cumulative_time = 0  # Initialize cumulative time
 
-    # 如果日志文件不存在，初始化日志文件并写入表头
     if not os.path.exists(log_file):
         with open(log_file, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -249,7 +248,6 @@ def mixed_train(model,              # model of neural operator
             err_eqn += eqn_loss.item()
 
         scheduler.step()
-        t2 = default_timer()
         if num_eqn_iter != 0:
             err_eqn /= num_eqn_iter
         if use_tqdm:
