@@ -1,6 +1,6 @@
 data:
   seed: 1234
-  datapath: 'Data-n-model\Dataset\NS-Re500_T500_id0.npy'
+  datapath: 'D:\Github\physics_informed\Data-n-model\Dataset\NS-Re500_T500_id0.npy'
   Re: 500
   total_num: 100
   offset: 0
@@ -28,9 +28,10 @@ train:
   scheduler_gamma: 0.5
   ic_loss: 10.0
   f_loss: 1.0
-  xy_loss: 0
+  data_loss: 0.0
+  reg_loss: 1.0
 
-  ckpt: 'Data-n-model\pretrained-model\PINO-half-90.pt'
+  ckpt: 'D:\Github\physics_informed\Data-n-model\pretrained-model\PINO-half-90.pt'
 
 test:
   batchsize: 2
@@ -38,4 +39,4 @@ test:
 log:
   project: 'PINO-meta'
   group: 'Re500-05s-meta'
-  logfile: 'log\PINO-half-90-1000epoch'
+  logfile: 'log\PINO-half-90.log'

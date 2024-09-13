@@ -131,9 +131,8 @@ class InnerNet(
 
     def solve(self, x, y):
         params = tuple(self.parameters())
-        inner_optim = torchopt.Adam(params, betas=(0.9, 0.999), lr=self.inner_lr)
+        inner_optim = torchopt.Adam(params, lr=self.inner_lr)
         with torch.enable_grad():
-            # Temporarily enable gradient computation for conducting the optimization
             for self.current_iter in range(self.n_inner_iter):
                 loss = self.objective(x, y)
                 inner_optim.zero_grad()
