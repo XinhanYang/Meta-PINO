@@ -131,7 +131,8 @@ class InnerNet(
 
     def solve(self, x, y):
         params = tuple(self.parameters())
-        inner_optim = torchopt.Adam(params, lr=self.inner_lr)
+        inner_optim = torch.optim.Adam(params, lr=self.inner_lr)
+        #inner_optim = torchopt.Adam(params, lr=self.inner_lr)
         with torch.enable_grad():
             for self.current_iter in range(self.n_inner_iter):
                 loss = self.objective(x, y)
