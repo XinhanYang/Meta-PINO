@@ -238,12 +238,12 @@ def subprocess_fn(rank, args):
         log=args.log,
         start_epoch = start_epoch)
     
-    test(meta_net,
-         loader,
-         test_loader,
-         config,
-         rank,
-         use_tqdm=True)
+    # test(meta_net,
+    #      loader,
+    #      test_loader,
+    #      config,
+    #      rank,
+    #      use_tqdm=True)
 
 def train(meta_net,
         loader,
@@ -327,6 +327,37 @@ def train(meta_net,
             v,
             inner_ic_weight,
             inner_f_weight) for _ in range(batch_size)]
+        
+        with torch.no_grad():
+            for x, y in train_loader:
+                x, y = x.to(rank), y.to(rank)
+                x_in = F.pad(x, (0, 0, 0, 5), "constant", 0)
+                out = meta_net(x_in).reshape(batch_size, S, S, T + 5)
+                out = out[..., :-5]
+                x = x[:, :, :, 0, -1]
+
+                loss_l2 = loss_fn(out.view(batch_size, S, S, T), y.view(batch_size, S, S, T))
+
+                loss_ic, loss_f = PINO_loss3d(out.view(batch_size, S, S, T), x, forcing, v, t_interval)
+
+                total_loss = loss_l2 * data_weight + loss_f * f_weight + loss_ic * ic_weight
+
+                loss_dict['total_loss'] += total_loss
+                loss_dict['loss_l2'] += loss_l2
+                loss_dict['loss_f'] += loss_f
+                loss_dict['loss_ic'] += loss_ic
+            
+            loss_reduced = reduce_loss_dict(loss_dict)
+
+            loss_start_ic = loss_reduced['loss_ic'].item() / (len(train_loader))
+            loss_start_f = loss_reduced['loss_f'].item() / (len(train_loader))
+            start_total_loss = loss_reduced['total_loss'].item() / (len(train_loader))
+            loss_start_l2 = loss_reduced['loss_l2'].item() / (len(train_loader))
+        
+        loss_dict = {'total_loss': 0.0,
+                     'loss_ic': 0.0,
+                     'loss_f': 0.0,
+                     'loss_l2': 0.0}
 
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(rank), y_batch.to(rank)
@@ -413,10 +444,14 @@ def train(meta_net,
 
         log_dict.update({
             'epoch': ep + 1,
-            'train_total_loss': total_loss,
-            'train_l2_error': loss_l2,
-            'train_ic_loss': loss_ic,
-            'train_f_loss': loss_f,
+            'train_start_total_loss': start_total_loss,
+            'train_start_l2_error': loss_start_l2,
+            'train_start_ic_loss': loss_start_ic,
+            'train_start_f_loss': loss_start_f,
+            'train_end_total_loss': total_loss,
+            'train_end_l2_error': loss_l2,
+            'train_end_ic_loss': loss_ic,
+            'train_end_f_loss': loss_f,
             'avg_instance_losses': avg_instance_loss,
             'epoch_time': str(timedelta(seconds=epoch_time)),
             'cumulative_time': str(timedelta(seconds=cumulative_time))
