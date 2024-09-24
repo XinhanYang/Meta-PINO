@@ -160,9 +160,10 @@ def train(meta_net,
     n_inner_iter = config['train']['inner_steps']
     loss_fn = LpLoss(size_average=True)
 
-    pbar = range(start_epoch, config['train']['epochs'])
-    if use_tqdm:
-        pbar = tqdm(pbar, dynamic_ncols=True, smoothing=0.05)
+    if rank == 0 and use_tqdm:
+        pbar = tqdm(range(start_epoch, config['train']['epochs']), dynamic_ncols=True, smoothing=0.05)
+    else:
+        pbar = range(start_epoch, config['train']['epochs'])
 
     cumulative_time = 0  # Initialize cumulative time
 
@@ -179,8 +180,8 @@ def train(meta_net,
     min_l2_loss = 1000
 
     for ep in pbar:
-        if rank == 0:
-            epoch_start_time = time()  # Start time for the epoch
+        
+        epoch_start_time = time()  # Start time for the epoch
         loss_dict = {'total_loss': 0.0,
                      'loss_ic': 0.0,
                      'loss_f': 0.0,
@@ -230,8 +231,7 @@ def train(meta_net,
 
                     inner_opt.step(total_loss)
 
-                    if rank == 0:
-                        torch.cuda.synchronize()
+                    torch.cuda.synchronize()
 
                     torch.cuda.empty_cache()
 
@@ -259,9 +259,6 @@ def train(meta_net,
             total_losses.backward()
             meta_opt.step()
 
-            del x_batch, y_batch, x_instance, y_instance, x_in
-            del net_state_dict, optim_state_dict
-            del out_instance, out, loss_l2, loss_ic, loss_f, total_loss, total_losses
             torch.cuda.empty_cache()
 
         epoch_time = time() - epoch_start_time
