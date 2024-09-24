@@ -132,9 +132,10 @@ def train(model,
         # Record time and errors to CSV
         epoch_time = time() - epoch_start_time
         cumulative_time += epoch_time
-        with open(log_file, 'a', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow([ep, train_ic, train_f, train_loss, test_l2, str(timedelta(seconds=epoch_time)), str(timedelta(seconds=cumulative_time))])
+        if rank == 0:
+            with open(log_file, 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([ep, train_ic, train_f, train_loss, test_l2, str(timedelta(seconds=epoch_time)), str(timedelta(seconds=cumulative_time))])
 
     if rank == 0:
         save_checkpoint(config['train']['save_dir'],
