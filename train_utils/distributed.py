@@ -4,9 +4,16 @@ import torch.distributed as dist
 
 
 def setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '7777'
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    # os.environ['MASTER_ADDR'] = 'localhost'
+    # os.environ['MASTER_PORT'] = '12355'
+    # dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    dist.init_process_group(
+        backend='nccl',
+        init_method='env://',
+        rank=rank,
+        world_size=world_size
+    )
+
 
 
 def cleanup():
