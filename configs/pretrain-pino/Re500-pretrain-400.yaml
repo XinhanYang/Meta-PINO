@@ -1,0 +1,47 @@
+data:
+  datapath: 'Data-n-model\Dataset\NS-Re500_T500_id0.npy'
+  Re: 500
+  total_num: 400
+  offset: 0
+  n_sample: 400
+  time_interval: 0.5
+  nx: 64
+  nt: 64
+  sub: 1
+  sub_t: 1
+  shuffle: True
+  num_ics: 300
+  S2: 128
+  T2: 65
+  seed: 1234
+  test_ratio: 0.1
+
+model:
+  layers: [32, 32, 32, 32, 32]
+  modes1: [4, 4, 4, 4]
+  modes2: [4, 4, 4, 4]
+  modes3: [4, 4, 4, 4]
+  fc_dim: 64
+  act: gelu
+
+train:
+  batchsize: 8
+  epochs: 20000
+  milestones: [10000, 20000, 30000]
+  base_lr: 0.001
+  scheduler_gamma: 0.5
+  ic_loss: 1.0
+  f_loss: 1.0
+  xy_loss: 5.0
+  save_dir: 'Re500-FDM'
+  save_name: 'PINO-pretrain-Re500-05s-4C4.pt'
+  data_iter: 4
+  eqn_iter: 4
+  ckpt:
+
+log:
+  project: 'PINO-pretrain-ICLR'
+  group: 'Re500-05s-4C4'
+  logfile: 'log\PINO-withRFIC-5000epoch'
+
+
