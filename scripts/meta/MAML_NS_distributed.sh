@@ -4,13 +4,14 @@
 #SBATCH --ntasks=1 
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=40G
-#SBATCH --time=2:00:00               
+#SBATCH --time=24:00:00               
 #SBATCH -p a100-4
 #SBATCH --gres=gpu:a100:4
 
-cd $HOME/Xinhan/github/Meta-PINO
-module load python
-source activate pino
+module load conda
+conda init bash
+source ~/.bashrc
+conda activate pino
 
 export MASTER_ADDR=$(hostname)            # Master node address
 export MASTER_PORT=12355                  # Master node port (ensure it's free and not blocked)
