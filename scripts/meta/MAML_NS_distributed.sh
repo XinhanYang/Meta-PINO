@@ -8,6 +8,7 @@
 #SBATCH -p a100-4
 #SBATCH --gres=gpu:a100:4
 
+cd $HOME/Xinhan/github/Meta-PINO
 module load conda
 conda init bash
 source ~/.bashrc
