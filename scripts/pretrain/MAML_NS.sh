@@ -8,6 +8,9 @@
 #SBATCH --gres=gpu:a100:1          
 
 cd $HOME/Xinhan/github/Meta-PINO
-module load python
-source activate pino
+module load conda
+conda init bash
+source ~/.bashrc
+conda activate pino
+
 python train_PINO3d.py --config_path configs/pretrain-pino/Re500-pretrain-400.yaml
