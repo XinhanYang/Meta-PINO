@@ -1,47 +1,45 @@
 data:
-  datapath: 'Data-n-model\Dataset\NS-Re500_T500_id0.npy'
-  Re: 500
-  total_num: 4000
-  offset: 0
-  n_sample: 4000
-  time_interval: 0.5
-  nx: 64
-  nt: 64
-  sub: 1
-  sub_t: 1
-  shuffle: True
-  num_ics: 300
-  S2: 128
-  T2: 65
-  seed: 1234
-  test_ratio: 0.1
+  datapath: 'Data-n-model\Dataset\NS-Re500_T500_id0.npy'  # Path to the dataset file
+  Re: 500  # Reynolds number for the NS (Navier-Stokes) equation
+  total_num: 4000  # Total number of data samples
+  offset: 0  # Offset to start reading data from
+  n_sample: 4000  # Number of samples to use from the dataset
+  time_interval: 0.5  # Time interval between samples
+  nx: 64  # Number of grid points in the spatial dimension (x-direction)
+  nt: 64  # Number of time steps
+  sub: 1  # Spatial subsampling factor
+  sub_t: 1  # Temporal subsampling factor
+  shuffle: True  # Whether to shuffle the dataset
+  num_ics: 300  # Number of initial conditions for training
+  S2: 128  # Spatial resolution for the second stage (e.g., super-resolution)
+  T2: 65  # Temporal resolution for the second stage (e.g., super-resolution)
+  seed: 1234  # Random seed for reproducibility
+  test_ratio: 0.025  # Proportion of data to be used for testing. Set maximum test instance to 100.
 
 model:
-  layers: [64, 64, 64, 64, 64]
-  modes1: [8, 8, 8, 8]
-  modes2: [8, 8, 8, 8]
-  modes3: [8, 8, 8, 8]
-  fc_dim: 128
-  act: gelu
+  layers: [64, 64, 64, 64, 64]  # Number of neurons in each layer of the model
+  modes1: [8, 8, 8, 8]  # Number of Fourier modes to use in the x-dimension
+  modes2: [8, 8, 8, 8]  # Number of Fourier modes to use in the y-dimension
+  modes3: [8, 8, 8, 8]  # Number of Fourier modes to use in the z-dimension
+  fc_dim: 128  # Dimension of the fully connected layer
+  act: gelu  # Activation function
 
 train:
-  batchsize: 8
-  epochs: 40000
-  milestones: [10000, 20000, 30000]
-  base_lr: 0.001
-  scheduler_gamma: 0.5
-  ic_loss: 1.0
-  f_loss: 1.0
-  xy_loss: 5.0
-  save_dir: 'Re500-FDM'
-  save_name: 'PINO-pretrain-Re500-05s-4C4.pt'
-  data_iter: 4
-  eqn_iter: 4
-  ckpt:
+  batchsize: 8  # Number of samples per batch for training
+  epochs: 40000  # Number of epochs for training
+  milestones: [10000, 20000, 30000]  # Epoch milestones for learning rate adjustment
+  base_lr: 0.001  # Initial learning rate
+  scheduler_gamma: 0.5  # Multiplicative factor for learning rate decay at milestones
+  ic_loss: 1.0  # Weight for the initial condition loss
+  f_loss: 1.0  # Weight for the equation loss
+  xy_loss: 5.0  # Weight for the spatial-temporal loss
+  save_dir: 'Re500-FDM'  # Directory to save the model checkpoints
+  save_name: 'PINO-pretrain-4000.pt'  # Filename to save the model checkpoint
+  data_iter: 4  # Number of iterations for data loss calculation
+  eqn_iter: 4  # Number of iterations for equation loss calculation
+  ckpt:  # Checkpoint file for resuming training (if any)
 
 log:
-  project: 'PINO-pretrain-ICLR'
-  group: 'Re500-05s-4C4'
-  logfile: 'log\PINO-withRFIC-5000epoch'
-
-
+  project: 'PINO-pretrain-ICLR'  # Project name for logging
+  group: 'Re500-05s-4C4'  # Group name for logging
+  logfile: 'log\PINO-pretrain-4000.log'  # Path to the log file
