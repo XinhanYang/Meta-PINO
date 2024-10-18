@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
+import os
 
 from train_utils import Adam
 from train_utils.datasets import NSLoader
@@ -65,11 +66,27 @@ def subprocess_fn(rank, args):
                   fc_dim=config['model']['fc_dim'],
                   layers=config['model']['layers']).to(rank)
 
+    start_epoch = 0
     if 'ckpt' in config['train']:
         ckpt_path = config['train']['ckpt']
-        ckpt = torch.load(ckpt_path)
-        model.load_state_dict(ckpt['model'])
-        print('Weights loaded from %s' % ckpt_path)
+        if ckpt_path is not None:
+            if os.path.exists(ckpt_path):
+                ckpt = torch.load(ckpt_path, map_location={'cuda:%d' % 0: 'cuda:%d' % rank})
+                
+                # Check and load model state dict if it exists
+                if 'model' in ckpt:
+                    model.load_state_dict(ckpt['model'])
+                    print('Model state loaded from %s' % ckpt_path)
+                # Update start epoch if it exists
+                if 'epoch' in ckpt:
+                    start_epoch = ckpt['epoch'] + 1
+                    print('Starting epoch updated to %d' % start_epoch)
+            else:
+                print('Checkpoint file does not exist at %s' % ckpt_path)
+        else:
+            print('Checkpoint path is None in the config')
+    else:
+        print('Checkpoint path is not provided in the config')
 
     if args.distributed:
         model = DDP(model, device_ids=[rank], broadcast_buffers=False)
@@ -100,7 +117,8 @@ def subprocess_fn(rank, args):
           rank,
           log=args.log,
           project=config['log']['project'],
-          group=config['log']['group'])
+          group=config['log']['group'],
+          start_epoch=start_epoch)
 
     if args.distributed:
         cleanup()
