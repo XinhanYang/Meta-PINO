@@ -141,15 +141,17 @@ def train(model,
                 writer = csv.writer(f)
                 writer.writerow([ep, train_ic, train_f, train_loss, test_l2, str(timedelta(seconds=epoch_time)), str(timedelta(seconds=cumulative_time))])
 
-        if rank == 0 and ep % 1000:
-            save_checkpoint(config['train']['save_dir'],
+        if rank == 0 and (ep + 1) % 500 == 0:
+            save_checkpoint(ep,
+                            config['train']['save_dir'],
                             config['train']['save_name'],
                             model, optimizer)
             if wandb and log:
                 run.finish()
 
     if rank == 0:
-            save_checkpoint(config['train']['save_dir'],
+            save_checkpoint(ep,
+                            config['train']['save_dir'],
                             config['train']['save_name'],
                             model, optimizer)
             if wandb and log:
