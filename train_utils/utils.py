@@ -153,7 +153,7 @@ def count_params(net):
     return count
 
 
-def save_checkpoint(path, name, model, optimizer=None):
+def save_checkpoint(epoch, path, name, model, optimizer=None):
     # ckpt_dir = 'checkpoints/%s/' % path
     ckpt_dir = '/%s/' % path
     if not os.path.exists(ckpt_dir):
@@ -169,6 +169,7 @@ def save_checkpoint(path, name, model, optimizer=None):
         optim_dict = 0.0
 
     torch.save({
+        'epoch': epoch,
         'model': model_state_dict,
         'optim': optim_dict
     }, ckpt_dir + name)
