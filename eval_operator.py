@@ -7,6 +7,7 @@ from train_utils import NSLoader, get_forcing, DarcyFlow
 
 from train_utils.eval_3d import eval_ns
 from train_utils.eval_2d import eval_darcy
+from train_utils.data_utils import data_sampler
 
 from argparse import ArgumentParser
 
@@ -14,16 +15,38 @@ from argparse import ArgumentParser
 def test_3d(config):
     device = 0 if torch.cuda.is_available() else 'cpu'
     data_config = config['data']
-    loader = NSLoader(datapath1=data_config['datapath'],
-                      nx=data_config['nx'], nt=data_config['nt'],
-                      sub=data_config['sub'], sub_t=data_config['sub_t'],
-                      N=data_config['total_num'],
-                      t_interval=data_config['time_interval'])
 
-    eval_loader = loader.make_loader(n_sample=data_config['n_sample'],
-                                     batch_size=config['test']['batchsize'],
-                                     start=data_config['offset'],
-                                     train=data_config['shuffle'])
+    seed = data_config['seed']
+    print(f'Seed :{seed}')
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = True
+    if 'datapath2' in data_config:
+        loader = NSLoader(datapath1=data_config['datapath'], datapath2=data_config['datapath2'],
+                          nx=data_config['nx'], nt=data_config['nt'],
+                          sub=data_config['sub'], sub_t=data_config['sub_t'],
+                          N=data_config['total_num'],
+                          t_interval=data_config['time_interval'])
+    else:
+        loader = NSLoader(datapath1=data_config['datapath'],
+                          nx=data_config['nx'], nt=data_config['nt'],
+                          sub=data_config['sub'], sub_t=data_config['sub_t'],
+                          N=data_config['total_num'],
+                          t_interval=data_config['time_interval'])
+    
+    trainset, testset = loader.split_dataset(data_config['n_sample'], data_config['offset'], data_config['test_ratio'])
+    #testset.indices = [63, 44, 5, 89, 42, 36, 97, 13, 47, 17]
+    train_loader = DataLoader(trainset, batch_size=config['test']['batchsize'],
+                             sampler=data_sampler(testset,
+                                                  shuffle=False,
+                                                  distributed=False),
+                             drop_last=False)
+    test_loader = DataLoader(testset, batch_size=config['test']['batchsize'],
+                             sampler=data_sampler(testset,
+                                                  shuffle=False,
+                                                  distributed=False),
+                             drop_last=False)
+    
     model = FNO3d(modes1=config['model']['modes1'],
                   modes2=config['model']['modes2'],
                   modes3=config['model']['modes3'],
@@ -37,9 +60,20 @@ def test_3d(config):
         print('Weights loaded from %s' % ckpt_path)
     print(f'Resolution : {loader.S}x{loader.S}x{loader.T}')
     forcing = get_forcing(loader.S).to(device)
+    print('train set evaluation: \n')
+
     eval_ns(model,
             loader,
-            eval_loader,
+            train_loader,
+            forcing,
+            config,
+            device=device)
+    
+    print('test set evaluation: \n')
+
+    eval_ns(model,
+            loader,
+            test_loader,
             forcing,
             config,
             device=device)
