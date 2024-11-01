@@ -1,0 +1,33 @@
+data:
+  datapath: 'Data-n-model\Dataset\NS-Re500_T500_id0.npy'  # Path to the dataset file
+  Re: 500  # Reynolds number for the NS equation
+  total_num: 400  # Total number of data samples
+  offset: 0  # Offset to start reading data from
+  n_sample: 400  # Number of samples to use from the dataset
+  time_interval: 0.5  # Time interval between samples
+  nx: 64  # Number of grid points in the spatial dimension (x-direction)
+  nt: 64  # Number of time steps
+  sub: 1  # Spatial subsampling factor
+  sub_t: 1  # Temporal subsampling factor
+  shuffle: False  # Whether to shuffle the dataset
+  S2: 128  # Spatial resolution for the second stage (e.g., super-resolution)
+  T2: 65  # Temporal resolution for the second stage (e.g., super-resolution)
+  seed: 1234  # Random seed for reproducibility
+  test_ratio: 0.1  # Proportion of data to be used for testing
+
+model:
+  layers: [32, 32, 32, 32, 32]
+  modes1: [4, 4, 4, 4]
+  modes2: [4, 4, 4, 4]
+  modes3: [4, 4, 4, 4]
+  fc_dim: 64
+  act: gelu  # Activation function
+
+test:
+  batchsize: 1
+  ckpt: 'Data-n-model\pretrained-model\PINO-half-90.pt'
+
+log:
+  project: 'PINO-None'
+  group: 'eval'
+

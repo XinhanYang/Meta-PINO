@@ -46,8 +46,9 @@ def eval_ns(model,  # model
         pbar = tqdm(dataloader, dynamic_ncols=True, smoothing=0.05)
     else:
         pbar = dataloader
-    loss_dict = {'f_error': 0.0,
-                 'test_l2': 0.0}
+    loss_dict = {'loss_f': 0.0,
+                 'loss_data': 0.0,
+                 'loss_ic': 0.0}
     start_time = default_timer()
     with torch.no_grad():
         for x, y in pbar:
@@ -59,18 +60,21 @@ def eval_ns(model,  # model
             loss_l2 = myloss(out.view(batch_size, S, S, T), y.view(batch_size, S, S, T))
             loss_ic, loss_f = PINO_loss3d(out.view(batch_size, S, S, T), x, forcing, v, t_interval)
 
-            loss_dict['f_error'] += loss_f
-            loss_dict['test_l2'] += loss_l2
+            loss_dict['loss_f'] += loss_f
+            loss_dict['loss_data'] += loss_l2
+            loss_dict['loss_ic'] += loss_ic
             if device == 0 and use_tqdm:
                 pbar.set_description(
                     (
-                        f'Train f error: {loss_f.item():.5f}; Test l2 error: {loss_l2.item():.5f}'
+                        f'Train f error: {loss_f.item():.5f}; Train ic error: {loss_ic.item():.5f};  Test l2 data error: {loss_l2.item():.5f}'
                     )
                 )
     end_time = default_timer()
-    test_l2 = loss_dict['test_l2'].item() / len(dataloader)
-    loss_f = loss_dict['f_error'].item() / len(dataloader)
-    print(f'==Averaged relative L2 error is: {test_l2}==\n'
+    test_l2 = loss_dict['loss_data'].item() / len(dataloader)
+    loss_f = loss_dict['loss_f'].item() / len(dataloader)
+    loss_ic = loss_dict['loss_ic'].item() / len(dataloader)
+    print(f'==Averaged relative L2 data error is: {test_l2}==\n'
+          f'==Averaged IC error is: {loss_ic}==\n'
           f'==Averaged equation error is: {loss_f}==')
     print(f'Time cost: {end_time - start_time} s')
     if device == 0:
