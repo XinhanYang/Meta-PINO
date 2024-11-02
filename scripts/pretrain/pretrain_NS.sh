@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=pretain_pino
+#SBATCH --job-name=pretrain_pino
 #SBATCH --nodes=1
 #SBATCH --ntasks=1                    
 #SBATCH --mem-per-cpu=40G              

@@ -50,7 +50,6 @@ def train(model,
 
     model.train()
     myloss = LpLoss(size_average=True)
-    pbar = range(config['train']['epochs'])
 
     pbar = range(start_epoch, config['train']['epochs'])
     if use_tqdm:
@@ -69,6 +68,7 @@ def train(model,
 
 
     for ep in pbar:
+        
         epoch_start_time = time()  # Start time for the epoch
         loss_dict = {'train_loss': 0.0,
                      'train_ic': 0.0,
