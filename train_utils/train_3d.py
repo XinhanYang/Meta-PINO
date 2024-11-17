@@ -51,9 +51,10 @@ def train(model,
     model.train()
     myloss = LpLoss(size_average=True)
 
-    pbar = range(start_epoch, config['train']['epochs'])
-    if use_tqdm:
-        pbar = tqdm(pbar, dynamic_ncols=True, smoothing=0.05)
+    if rank == 0 and use_tqdm:
+        pbar = tqdm(range(start_epoch, config['train']['epochs']), dynamic_ncols=True, smoothing=0.05)
+    else:
+        pbar = range(start_epoch, config['train']['epochs'])
 
     zero = torch.zeros(1).to(rank)
 
