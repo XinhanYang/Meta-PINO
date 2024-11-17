@@ -28,6 +28,7 @@ def train(model,
           tags=['Nan'],
           start_epoch=0,
           use_tqdm=True,
+          distributed=False,
           profile=False):
     if rank == 0 and wandb and log:
         run = wandb.init(project=project,
@@ -67,8 +68,10 @@ def train(model,
             writer = csv.writer(f)
             writer.writerow(['Epoch', 'Train IC Loss', 'Train F Loss', 'Train Loss', 'Test L2 Error', 'Epoch Time', 'Cumulative Time'])
 
-
     for ep in pbar:
+
+        if distributed:
+            train_loader.sampler.set_epoch(ep)
         
         epoch_start_time = time()  # Start time for the epoch
         loss_dict = {'train_loss': 0.0,
