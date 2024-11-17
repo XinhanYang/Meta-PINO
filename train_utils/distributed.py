@@ -57,7 +57,7 @@ def reduce_sum(tensor):
 
 
 def reduce_loss_dict(loss_dict):
-    if not dist.is_available() or dist.is_initialized():
+    if not dist.is_available() or not dist.is_initialized():
         return loss_dict
     world_size = get_world_size()
 

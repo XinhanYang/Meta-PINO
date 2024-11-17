@@ -118,6 +118,7 @@ def subprocess_fn(rank, args):
           log=args.log,
           project=config['log']['project'],
           group=config['log']['group'],
+          distributed=args.distributed,
           start_epoch=start_epoch)
 
     if args.distributed:
