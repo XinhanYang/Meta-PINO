@@ -125,6 +125,8 @@ def train(model,
             'Train loss': train_loss,
             'Test L2 error': test_l2
             }
+        
+        print(f"[Rank {rank}] Loss: {train_loss}")
 
         if rank == 0:
             if use_tqdm:

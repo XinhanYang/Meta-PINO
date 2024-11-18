@@ -34,7 +34,10 @@ def subprocess_fn(rank, args):
     print(f'Seed :{seed}')
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.benchmark = True
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 
     if 'datapath2' in data_config:
         loader = NSLoader(datapath1=data_config['datapath'], datapath2=data_config['datapath2'],
@@ -54,6 +57,7 @@ def subprocess_fn(rank, args):
     #                            start=data_config['offset'])
     trainset, testset = loader.split_dataset(data_config['n_sample'], data_config['offset'], data_config['test_ratio'])
     train_loader = DataLoader(trainset, batch_size=config['train']['batchsize'],
+                              shuffle=False,
                               sampler=data_sampler(trainset,
                                                    shuffle=data_config['shuffle'],
                                                    distributed=args.distributed),
@@ -89,7 +93,7 @@ def subprocess_fn(rank, args):
         print('Checkpoint path is not provided in the config')
 
     if args.distributed:
-        model = DDP(model, device_ids=[rank], broadcast_buffers=False)
+        model = DDP(model, device_ids=[rank])
 
     if 'twolayer' in config['train'] and config['train']['twolayer']:
         requires_grad(model, False)
