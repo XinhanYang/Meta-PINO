@@ -113,6 +113,9 @@ def train(model,
             torch.cuda.synchronize()
             t2 = default_timer()
             log_dict['Time cost'] = t2 - t1
+        if distributed:
+            # Ensure all ranks call scheduler.step()
+            torch.distributed.barrier()
         scheduler.step()
         loss_reduced = reduce_loss_dict(loss_dict)
         train_ic = loss_reduced['train_ic'].item() / len(train_loader)
@@ -156,12 +159,12 @@ def train(model,
                 run.finish()
 
     if rank == 0:
-            save_checkpoint(ep,
-                            config['train']['save_dir'],
-                            config['train']['save_name'],
-                            model, optimizer)
-            if wandb and log:
-                run.finish()
+        save_checkpoint(ep,
+                        config['train']['save_dir'],
+                        config['train']['save_name'],
+                        model, optimizer)
+        if wandb and log:
+            run.finish()
 
 def mixed_train(model,              # model of neural operator
                 train_loader,       # dataloader for training with data
