@@ -61,6 +61,28 @@ def train_deeponet_cp(config, args):
     model = DeepONetCP(branch_layer=[u0_dim] + config['model']['branch_layers'],
                        trunk_layer=[3] + config['model']['trunk_layers']).to(rank)
     
+    if 'ckpt' in config['train']:
+        ckpt_path = config['train']['ckpt']
+        if ckpt_path is not None:
+            if os.path.exists(ckpt_path):
+                ckpt = torch.load(ckpt_path, map_location={'cuda:%d' % 0: 'cuda:%d' % rank})
+                
+                # Check and load model state dict if it exists
+                if 'model' in ckpt:
+                    model.load_state_dict(ckpt['model'])
+                    print('Model state loaded from %s' % ckpt_path)
+                # Update start epoch if it exists
+                if 'epoch' in ckpt:
+                    start_epoch = ckpt['epoch'] + 1
+                    print('Starting epoch updated to %d' % start_epoch)
+            else:
+                print('Checkpoint file does not exist at %s' % ckpt_path)
+        else:
+            print('Checkpoint path is None in the config')
+    else:
+        print('Checkpoint path is not provided in the config')
+
+    
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
