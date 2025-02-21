@@ -11,6 +11,7 @@ import os
 
 
 def subprocess_fn(args):
+
     if args.distributed:
         rank = int(os.environ["LOCAL_RANK"])
     else:
@@ -19,19 +20,18 @@ def subprocess_fn(args):
         setup() 
     print(f'Running on rank {rank}')
 
-    seed = 42
-    print(f'Random seed :{seed}')
+    config_file = args.config_path
+    with open(config_file, 'r') as stream:
+        config = yaml.load(stream, yaml.FullLoader)
+    
+    seed = config['data']['seed']
+    print(f'seed :{seed}')
     torch.manual_seed(seed)
     np.random.seed(seed)
     torch.cuda.manual_seed_all(seed)
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
-    
-    config_file = args.config_path
-    with open(config_file, 'r') as stream:
-        config = yaml.load(stream, yaml.FullLoader)
 
     if args.mode == 'train':
         print('Start training DeepONet Cartesian Product')
@@ -45,6 +45,9 @@ def subprocess_fn(args):
             test_deeponet_darcy(config)
         else:
             test_deeponet_ns(config)
+    
+    if args.distributed:
+        cleanup()
     print('Done!')
 
 if __name__ == '__main__':
@@ -56,7 +59,4 @@ if __name__ == '__main__':
 
     args.distributed = args.num_gpus > 1
 
-    if args.distributed:
-        subprocess_fn(args)
-    else:
-        subprocess_fn(args)
+    subprocess_fn(args)

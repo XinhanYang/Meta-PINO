@@ -12,80 +12,65 @@ try:
 except ImportError:
     wandb = None
     
-
-import numpy as np
 import torch
-import torch.nn.functional as F
 
-from train_utils import Adam
+from baselines.model import DeepONetCP
+from baselines.data import DeepONetCPNS
 from torch.utils.data import DataLoader
-from train_utils.datasets import NSLoader
 from train_utils.data_utils import data_sampler
 from train_utils.losses import get_forcing
 from train_utils.distributed import setup, cleanup, reduce_loss_dict
 from train_utils.losses import LpLoss, PINO_loss3d, get_forcing
-from train_utils.utils import save_checkpoint_meta
-from torch.nn.parallel import DistributedDataParallel as DDP
-import torch.multiprocessing as mp
-import torch.optim as optim
-import torchopt
 
-from models import FNO3d, FNO2d
 
 import warnings
 
 warnings.filterwarnings("ignore", message=".*functorch.vjp.*")
 warnings.filterwarnings("ignore", message=".*functorch.grad.*")
 
-def subprocess_fn(rank, args):
+def subprocess_fn(args):
 
     if args.distributed:
-        setup(rank, args.num_gpus)
-    print(f'Running on rank {rank}')
+        rank = int(os.environ["LOCAL_RANK"])
+    else:
+        rank = 0
+    if args.distributed:
+        setup() 
 
+    print(f'Running on rank {rank}')
     config_file = args.config_path
     with open(config_file, 'r') as stream:
         config = yaml.load(stream, yaml.FullLoader)
 
     # construct dataloader
-    data_config = config['data']
-
-    seed = data_config['seed']
+    seed = config['data']['seed']
     print(f'Seed :{seed}')
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.benchmark = True
 
-    if 'datapath2' in data_config:
-        loader = NSLoader(datapath1=data_config['datapath'], datapath2=data_config['datapath2'],
-                          nx=data_config['nx'], nt=data_config['nt'],
-                          sub=data_config['sub'], sub_t=data_config['sub_t'],
-                          N=data_config['total_num'],
-                          t_interval=data_config['time_interval'])
-    else:
-        loader = NSLoader(datapath1=data_config['datapath'],
-                          nx=data_config['nx'], nt=data_config['nt'],
-                          sub=data_config['sub'], sub_t=data_config['sub_t'],
-                          N=data_config['total_num'],
-                          t_interval=data_config['time_interval'])
-    if args.start != -1:
-        config['data']['offset'] = args.start
-    
-    trainset, testset = loader.split_dataset(data_config['n_sample'], data_config['offset'], data_config['test_ratio'])
-    #testset.indices = [63, 44, 5, 89, 42, 36, 97, 13, 47, 17]
-    test_loader = DataLoader(testset, batch_size=config['train']['batchsize'],
-                             sampler=data_sampler(testset,
-                                                  shuffle=False,
-                                                  distributed=args.distributed),
-                             drop_last=False)
+    data_config = config['data']
+    batch_size = config['train']['batchsize']
+    dataset = DeepONetCPNS(datapath=data_config['datapath'],
+                           nx=data_config['nx'], nt=data_config['nt'],
+                           sub=data_config['sub'], sub_t=data_config['sub_t'],
+                           offset=data_config['offset'], num=data_config['n_sample'],
+                           t_interval=data_config['time_interval'])
+    train_dataset, test_dataset = dataset.split_dataset(data_config['n_sample'], 
+                                                    offset=data_config['offset'], 
+                                                    test_ratio=data_config['test_ratio'])
 
-    # construct model
-    meta_net = FNO3d(modes1=config['model']['modes1'],
-                  modes2=config['model']['modes2'],
-                  modes3=config['model']['modes3'],
-                  fc_dim=config['model']['fc_dim'],
-                  layers=config['model']['layers']).to(rank)
+    test_loader = DataLoader(test_dataset, batch_size=config['train']['batchsize'],
+                            shuffle=data_config['shuffle'],
+                            sampler=data_sampler(test_dataset,
+                                                shuffle=data_config['shuffle'],
+                                                distributed=args.distributed),
+                            drop_last=True)
     
+    u0_dim = dataset.S ** 2
+    meta_net = DeepONetCP(branch_layer=[u0_dim] + config['model']['branch_layers'],
+                       trunk_layer=[3] + config['model']['trunk_layers']).to(rank)
+
     if 'ckpt' in config['train']:
         ckpt_path = config['train']['ckpt']
         if os.path.exists(ckpt_path):
@@ -95,31 +80,35 @@ def subprocess_fn(rank, args):
         else:
             print('No checkpoint found at %s' % ckpt_path)
 
-    if args.distributed:
-        meta_net = DDP(meta_net, device_ids=[rank], broadcast_buffers=False)
-
-    forcing = get_forcing(loader.S).to(rank)
+    forcing = get_forcing(dataset.S).to(rank)
 
     test(meta_net,
-         loader,
+         dataset,
          test_loader,
          config,
          rank,
          forcing,
          use_tqdm=True)
 
-def test(meta_net, loader, test_loader, config, rank, forcing, use_tqdm=True):
-    S, T = loader.S, loader.T
-    loss_fn = LpLoss(size_average=True)
+def test(meta_net, 
+         dataset, 
+         test_loader, 
+         config,
+         rank,
+         forcing, 
+         use_tqdm=True):
+    S, T = dataset.S, dataset.T
+    myloss = LpLoss(size_average=True)
     inner_lr = config['train']['inner_lr']
     n_inner_iter = config['train']['epochs']
     ic_weight = config['train']['ic_loss']
     f_weight = config['train']['f_loss']
-    xy_weight = config['train']['data_loss']
+    data_weight = config['train']['data_loss']
     reg_weight = config['train']['reg_loss']
     t_interval = config['data']['time_interval']
     v = 1 / config['data']['Re']
     zero = torch.tensor(0.0, device=rank)
+    u0_dim = dataset.S ** 2
 
     # Initialize log file
     if rank == 0:
@@ -131,7 +120,7 @@ def test(meta_net, loader, test_loader, config, rank, forcing, use_tqdm=True):
 
     all_loss_logs = {
         'total_loss': [0.0] * (n_inner_iter + 1),
-        'loss_l2': [0.0] * (n_inner_iter + 1),
+        'loss_l2_data': [0.0] * (n_inner_iter + 1),
         'loss_ic': [0.0] * (n_inner_iter + 1),
         'loss_f': [0.0] * (n_inner_iter + 1),
         'iter_time': [0.0] * (n_inner_iter + 1),  # Start with 0 at index 0
@@ -153,13 +142,8 @@ def test(meta_net, loader, test_loader, config, rank, forcing, use_tqdm=True):
             x_instance = x_batch[i].unsqueeze(0)
             y_instance = y_batch[i].unsqueeze(0)
 
-            model = FNO3d(
-                modes1=config['model']['modes1'],
-                modes2=config['model']['modes2'],
-                modes3=config['model']['modes3'],
-                fc_dim=config['model']['fc_dim'],
-                layers=config['model']['layers']
-            ).to(rank)
+            model = DeepONetCP(branch_layer=[u0_dim] + config['model']['branch_layers'],
+                       trunk_layer=[3] + config['model']['trunk_layers']).to(rank)
 
             if 'ckpt' in config['train']:
                 ckpt_path = config['train']['ckpt']
@@ -169,10 +153,7 @@ def test(meta_net, loader, test_loader, config, rank, forcing, use_tqdm=True):
                     print(f'Checkpoint loaded from {ckpt_path}')
                 else:
                     print(f'No checkpoint found at {ckpt_path}')
-            else:
-                model.load_state_dict(meta_net.state_dict())
 
-            #optimizer = torchopt.Adam(model.parameters(), lr=inner_lr)
             optimizer = torch.optim.Adam(model.parameters(), lr=inner_lr)
             scheduler = torch.optim.lr_scheduler.MultiStepLR(
                 optimizer,
@@ -183,7 +164,7 @@ def test(meta_net, loader, test_loader, config, rank, forcing, use_tqdm=True):
             # Error log including both losses and times
             error_log = {
                 'total_loss': [],
-                'loss_l2': [],
+                'loss_l2_data': [],
                 'loss_ic': [],
                 'loss_f': [],
                 'regularization_loss': [],
@@ -197,19 +178,25 @@ def test(meta_net, loader, test_loader, config, rank, forcing, use_tqdm=True):
                 start_time = time()
 
                 optimizer.zero_grad()
-                x_in = F.pad(x_instance, (0, 0, 0, 5), "constant", 0)
-                out = model(x_in).reshape(1, S, S, T + 5)
-                out = out[..., :-5]
-                x_instance_padded = x_instance[:, :, :, 0, -1]
 
-                loss_l2 = loss_fn(out.view(1, S, S, T), y_instance.view(1, S, S, T))
+                grid = dataset.xyt
+                grid = grid.to(rank)  # grid value, (SxSxT, 3)
+                
+                pred = model(x_instance, grid)
+                
+                # Reshape tensors
+                x = x_instance.reshape(1, S, S)
+                y = y_instance.reshape(1, S, S, T)
+                pred = pred.reshape(1, S, S, T)
 
+                # Compute losses
+                loss_l2 = myloss(pred.view(1, S, S, T), y.view(1, S, S, T))
                 if ic_weight != 0 or f_weight != 0:
-                    loss_ic, loss_f = PINO_loss3d(out.view(1, S, S, T), x_instance_padded, forcing, v, t_interval)
+                    loss_ic, loss_f = PINO_loss3d(pred.view(1, S, S, T), x, forcing, v, t_interval)
                 else:
                     loss_ic, loss_f = zero, zero
 
-                total_loss = loss_l2 * xy_weight + loss_f * f_weight + loss_ic * ic_weight
+                total_loss = loss_l2 * data_weight + loss_f * f_weight + loss_ic * ic_weight
 
                 # Adding regularization loss
                 regularization_loss = 0
@@ -222,7 +209,7 @@ def test(meta_net, loader, test_loader, config, rank, forcing, use_tqdm=True):
 
                 # Record loss before parameter update
                 error_log['total_loss'].append(total_loss.item())
-                error_log['loss_l2'].append(loss_l2.item())
+                error_log['loss_l2_data'].append(loss_l2.item())
                 error_log['loss_ic'].append(loss_ic.item())
                 error_log['loss_f'].append(loss_f.item())
                 error_log['regularization_loss'].append(regularization_loss.item())
@@ -241,20 +228,25 @@ def test(meta_net, loader, test_loader, config, rank, forcing, use_tqdm=True):
 
             # Calculate and record final loss after the last iteration
             with torch.no_grad():
-                out = model(x_in).reshape(1, S, S, T + 5)
-                out = out[..., :-5]
-                final_loss_l2 = loss_fn(out.view(1, S, S, T), y_instance.view(1, S, S, T))
+                pred = model(x_instance, grid)
+                
+                # Reshape tensors
+                x = x_instance.reshape(1, S, S)
+                y = y_instance.reshape(1, S, S, T)
+                pred = pred.reshape(1, S, S, T)
 
+                # Compute losses
+                final_loss_l2 = myloss(pred.view(1, S, S, T), y.view(1, S, S, T))
                 if ic_weight != 0 or f_weight != 0:
-                    final_loss_ic, final_loss_f = PINO_loss3d(out.view(1, S, S, T), x_instance_padded, forcing, v, t_interval)
+                    final_loss_ic, final_loss_f = PINO_loss3d(pred.view(1, S, S, T), x, forcing, v, t_interval)
                 else:
                     final_loss_ic, final_loss_f = zero, zero
 
-                final_total_loss = final_loss_l2 * xy_weight + final_loss_f * f_weight + final_loss_ic * ic_weight
+                final_total_loss = final_loss_l2 * data_weight + final_loss_f * f_weight + final_loss_ic * ic_weight
 
                 # Record final loss at n_inner_iter + 1
                 all_loss_logs['total_loss'][-1] += final_total_loss.item()
-                all_loss_logs['loss_l2'][-1] += final_loss_l2.item()
+                all_loss_logs['loss_l2_data'][-1] += final_loss_l2.item()
                 all_loss_logs['loss_ic'][-1] += final_loss_ic.item()
                 all_loss_logs['loss_f'][-1] += final_loss_f.item()
 
@@ -284,22 +276,19 @@ def test(meta_net, loader, test_loader, config, rank, forcing, use_tqdm=True):
             f.write(f"Average Loss Logs:\n{json.dumps(avg_loss_logs, indent=4)}\n")
 
     # Print and return average L2 loss and all error logs
-    initial_l2_loss = avg_loss_logs['loss_l2'][0]
+    initial_l2_loss = avg_loss_logs['loss_l2_data'][0]
     print(f'Initial L2 Loss: {initial_l2_loss:.5f}')
 
-    final_l2_loss = avg_loss_logs['loss_l2'][-1]
+    final_l2_loss = avg_loss_logs['loss_l2_data'][-1]
     print(f'Final Test L2 Loss: {final_l2_loss:.5f}')
 
 if __name__ == '__main__':
-    parser =ArgumentParser(description='Basic paser')
+    parser = ArgumentParser(description='Basic paser')
     parser.add_argument('--config_path', type=str, help='Path to the configuration file')
-    parser.add_argument('--log', action='store_true', help='Turn on the wandb')
-    parser.add_argument('--num_gpus', type=int, help='Number of GPUs', default=1)
-    parser.add_argument('--start', type=int, default=-1, help='start index')
+    parser.add_argument('--mode', type=str, default='train', help='Train or test')
+    parser.add_argument('--num_gpus', type=int, default='1', help='Train or test')
     args = parser.parse_args()
+
     args.distributed = args.num_gpus > 1
 
-    if args.distributed:
-        mp.spawn(subprocess_fn, args=(args, ), nprocs=args.num_gpus)
-    else:
-        subprocess_fn(0, args)
+    subprocess_fn(args)
