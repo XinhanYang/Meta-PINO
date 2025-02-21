@@ -21,6 +21,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from train_utils.data_utils import data_sampler
 
+
 def train_deeponet_cp(config, args):
     '''
     Train Cartesian product DeepONet
@@ -41,12 +42,17 @@ def train_deeponet_cp(config, args):
                            sub=data_config['sub'], sub_t=data_config['sub_t'],
                            offset=data_config['offset'], num=data_config['n_sample'],
                            t_interval=data_config['time_interval'])
-    train_loader = DataLoader(dataset, batch_size=config['train']['batchsize'],
+    train_dataset, test_dataset = dataset.split_dataset(data_config['n_sample'], 
+                                                    offset=data_config['offset'], 
+                                                    test_ratio=data_config['test_ratio'])
+
+    train_loader = DataLoader(train_dataset, batch_size=config['train']['batchsize'],
                             shuffle=data_config['shuffle'],
-                            sampler=data_sampler(dataset,
+                            sampler=data_sampler(train_dataset,
                                                 shuffle=data_config['shuffle'],
                                                 distributed=args.distributed),
                             drop_last=True)
+
     v = 1 / config['data']['Re']
     S, T = dataset.S, dataset.T
     t_interval = config['data']['time_interval']
@@ -85,7 +91,7 @@ def train_deeponet_cp(config, args):
     
     if args.distributed:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        model = DDP(model, device_ids=[rank])
 
     optimizer = Adam(model.parameters(), lr=config['train']['base_lr'])
     scheduler = MultiStepLR(optimizer, milestones=config['train']['milestones'],
@@ -143,18 +149,19 @@ def train_deeponet_cp(config, args):
             optimizer.step()
 
             # Accumulate losses
-            loss_dict['loss_l2'] += loss_l2.item() * y.shape[0]
-            loss_dict['loss_ic'] += loss_ic.item() * y.shape[0]
-            loss_dict['loss_f'] += loss_f.item() * y.shape[0]
-            loss_dict['total_loss'] += total_loss.item() * y.shape[0]
+            loss_dict['loss_l2'] += loss_l2
+            loss_dict['loss_ic'] += loss_ic
+            loss_dict['loss_f'] += loss_f
+            loss_dict['total_loss'] += total_loss
 
         # Reduce losses across distributed processes
-        if args.distributed:
-            loss_reduced = reduce_loss_dict(loss_dict)
-            if rank == 0:
-                loss_dict = {k: v.item() / len(dataset) for k, v in loss_reduced.items()}
-        else:
-            loss_dict = {k: v / len(dataset) for k, v in loss_dict.items()}
+        loss_reduced = reduce_loss_dict(loss_dict)
+
+        # Normalize losses
+        loss_ic = loss_reduced['loss_ic'].item() / len(train_loader)
+        loss_f = loss_reduced['loss_f'].item() / len(train_loader)
+        total_loss = loss_reduced['total_loss'].item() / len(train_loader)
+        loss_l2 = loss_reduced['loss_l2'].item() / len(train_loader)
 
         # Scheduler step
         scheduler.step()
@@ -165,10 +172,10 @@ def train_deeponet_cp(config, args):
             # Prepare log dictionary
             log_dict = {
                 'epoch': e + 1,
-                'train_total_loss': loss_dict['total_loss'],
-                'train_l2_error': loss_dict['loss_l2'],
-                'train_ic_loss': loss_dict['loss_ic'],
-                'train_f_loss': loss_dict['loss_f'],
+                'train_total_loss': total_loss,
+                'train_l2_loss': loss_l2,
+                'train_ic_loss': loss_ic,
+                'train_f_loss':loss_f,
                 'epoch_time': str(timedelta(seconds=epoch_time)),
                 'cumulative_time': str(timedelta(seconds=cumulative_time))
             }
@@ -176,9 +183,9 @@ def train_deeponet_cp(config, args):
            
             pbar.set_description(
                 (
-                    f"Epoch: {e + 1}; Total loss: {loss_dict['total_loss']:.5f}; "
-                    f"L2 loss: {loss_dict['loss_l2']:.5f}; "
-                    f"IC loss: {loss_dict['loss_ic']:.5f}; F loss: {loss_dict['loss_f']:.5f}"
+                    f"Epoch: {e + 1}; Total loss: {total_loss:.5f}; "
+                    f"L2 loss: {loss_l2:.5f}; "
+                    f"IC loss: {loss_ic:.5f}; F loss: {loss_f:.5f}"
                 )
             )
 
@@ -187,12 +194,12 @@ def train_deeponet_cp(config, args):
                 f.write(json.dumps(log_dict, indent=4) + '\n')
 
             # Save checkpoint if this epoch achieves the minimum L2 loss
-            if loss_dict['loss_l2'] < min_l2_loss:
-                min_l2_loss = loss_dict['loss_l2']
-                save_checkpoint(config['train']['save_dir'],
+            if loss_l2 < min_l2_loss:
+                min_l2_loss = loss_l2
+                save_checkpoint(e,
+                                config['train']['save_dir'],
                                 config['train']['save_name'].replace('.pt', f'_best.pt'),
                                 model, optimizer)
-
 
 def train_deeponet(config):
     '''

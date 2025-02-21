@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, random_split, Subset
 from .utils import get_xytgrid, get_3dboundary, get_3dboundary_points
 from train_utils.utils import vor2vel, torch2dgrid
 import scipy.io
@@ -349,3 +349,26 @@ class DeepONetCPNS(Dataset):
         u0 = self.vor[idx, :, :, 0].reshape(-1)
         y = self.vor[idx, :, :, :].reshape(-1)
         return u0, y
+
+    def split_dataset(self, n_sample, offset=0, test_ratio=0.1):
+        """
+        Split the dataset into train and test sets.
+
+        Args:
+            n_sample (int): Total number of samples.
+            offset (int): Starting index for the dataset.
+            test_ratio (float): Ratio of the dataset to be used as the test set.
+
+        Returns:
+            train_dataset, test_dataset: Splitted datasets.
+        """
+        indices = list(range(offset, offset + n_sample))  # 生成索引
+        test_size = int(len(indices) * test_ratio)
+        train_size = len(indices) - test_size
+
+        train_indices, test_indices = random_split(indices, [train_size, test_size])
+
+        train_dataset = Subset(self, train_indices)
+        test_dataset = Subset(self, test_indices)
+
+        return train_dataset, test_dataset

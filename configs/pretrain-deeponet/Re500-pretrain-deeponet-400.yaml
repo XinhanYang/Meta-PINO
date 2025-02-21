@@ -10,10 +10,12 @@ data:
   sub: 1
   sub_t: 1
   shuffle: False
+  seed: 1234
+  test_ratio: 0.1
 
 model:
-  branch_layers: [128, 128, 128, 128]
-  trunk_layers: [128, 128, 128, 128]
+  branch_layers: [128, 128, 128, 128, 128 ,128]
+  trunk_layers: [128, 128, 128, 128, 128 ,128]
   activation: 'gelu'
 
 
@@ -24,7 +26,7 @@ train:
   ic_loss: 1.0
   f_loss: 1.0
   data_loss: 5.0
-  base_lr: 0.001
+  base_lr: 0.0001
   scheduler_gamma: 0.5
   save_dir: 'Re500-deepOnet'
   save_name: 'DeepONet-pretrain-400.pt'
