@@ -3,19 +3,21 @@ import torch
 import torch.distributed as dist
 
 
-def setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
-    torch.cuda.set_device(rank)
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
-    # dist.init_process_group(
-    #     backend='nccl',
-    #     init_method='env://',
-    #     rank=rank,
-    #     world_size=world_size
-    # )
+# def setup(rank, world_size):
+#     os.environ['MASTER_ADDR'] = 'localhost'
+#     os.environ['MASTER_PORT'] = '12355'
+#     torch.cuda.set_device(rank)
+#     dist.init_process_group("nccl", rank=rank, world_size=world_size)
+#     # dist.init_process_group(
+#     #     backend='nccl',
+#     #     init_method='env://',
+#     #     rank=rank,
+#     #     world_size=world_size
+#     # )
 
-
+def setup():
+    dist.init_process_group("nccl")
+    torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
 
 def cleanup():
     dist.destroy_process_group()

@@ -1,0 +1,25 @@
+data:
+  datapath: '/home/mou00006/shared/Meta-PINO/data/NS-Re500_T4000_id0.npy'
+  Re: 500
+  total_num: 400
+  offset: 0
+  n_sample: 400
+  time_interval: 0.5
+  nx: 64
+  nt: 64
+  sub: 1
+  sub_t: 1
+  shuffle: False
+  seed: 1234
+  test_ratio: 0.1
+
+model:
+  branch_layers: [128, 128, 128, 128, 128 ,128]
+  trunk_layers: [128, 128, 128, 128, 128 ,128]
+  activation: 'gelu'
+
+
+test:
+  batchsize: 1
+  ckpt: 'Re500-deepOnet/DeepONet-pretrain-400_best.pt'
+
