@@ -1,5 +1,5 @@
 data:
-  datapath: '/home/mou00006/shared/Meta-PINO/data/NS-Re500_T4000_id0.npy'
+  datapath: 'Data-n-model/Dataset/NS-Re500_T500_id0.npy'
   Re: 500
   total_num: 400
   offset: 0
@@ -12,6 +12,7 @@ data:
   shuffle: False
   seed: 1234
   test_ratio: 0.1
+  val_ratio: 0.1
 
 model:
   branch_layers: [128, 128, 128, 128, 128 ,128]

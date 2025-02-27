@@ -21,6 +21,75 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from train_utils.data_utils import data_sampler
 
+def validate_model(model, val_loader, dataset, config, rank=0):
+    """
+    Evaluate the model performance on the validation set and return the average values of different losses.
+    
+    Args:
+        model: DeepONet model
+        val_loader: DataLoader for the validation set
+        dataset: Dataset object containing attributes such as S, T, xyt (grid information), etc.
+        config: Configuration dictionary containing hyperparameters like loss weights
+        rank: Device ID in distributed training, default is 0
+        
+    Returns:
+        avg_total_loss, avg_l2_loss, avg_ic_loss, avg_f_loss
+    """
+    model.eval()  # Set to evaluation mode
+    myloss = LpLoss(size_average=True)
+    cumulative_loss = 0.0
+    cumulative_l2_loss = 0.0
+    cumulative_ic_loss = 0.0
+    cumulative_f_loss = 0.0
+    num_batches = 0
+
+    # Retrieve loss weights and related parameters
+    ic_weight = config['train']['ic_loss']
+    f_weight = config['train']['f_loss']
+    data_weight = config['train']['data_loss']
+    if ic_weight != 0 or f_weight != 0:
+        forcing = get_forcing(dataset.S).to(rank)
+        v = 1 / config['data']['Re']
+        t_interval = config['data']['time_interval']
+
+    with torch.no_grad():
+        for x, y in val_loader:
+            x = x.to(rank)
+            y = y.to(rank)
+            grid = dataset.xyt.to(rank)
+            batch_size = x.size(0)
+            S, T = dataset.S, dataset.T
+
+            pred = model(x, grid)
+            # Reshape tensors
+            x_reshaped = x.reshape(batch_size, S, S)
+            y_reshaped = y.reshape(batch_size, S, S, T)
+            pred_reshaped = pred.reshape(batch_size, S, S, T)
+
+            loss_l2 = myloss(pred_reshaped.view(batch_size, S, S, T),
+                             y_reshaped.view(batch_size, S, S, T))
+            if ic_weight != 0 or f_weight != 0:
+                loss_ic, loss_f = PINO_loss3d(pred_reshaped.view(batch_size, S, S, T),
+                                              x_reshaped, forcing, v, t_interval)
+            else:
+                loss_ic, loss_f = torch.zeros(1).to(rank), torch.zeros(1).to(rank)
+
+            total_loss = loss_l2 * data_weight + loss_f * f_weight + loss_ic * ic_weight
+
+            cumulative_loss += total_loss.item()
+            cumulative_l2_loss += loss_l2.item()
+            cumulative_ic_loss += loss_ic.item()
+            cumulative_f_loss += loss_f.item()
+            num_batches += 1
+
+    avg_total_loss = cumulative_loss / num_batches if num_batches > 0 else 0.0
+    avg_l2_loss = cumulative_l2_loss / num_batches if num_batches > 0 else 0.0
+    avg_ic_loss = cumulative_ic_loss / num_batches if num_batches > 0 else 0.0
+    avg_f_loss = cumulative_f_loss / num_batches if num_batches > 0 else 0.0
+
+    model.train()  # Switch back to training mode
+    return avg_total_loss, avg_l2_loss, avg_ic_loss, avg_f_loss
+
 
 def train_deeponet_cp(config, args):
     '''
@@ -42,9 +111,10 @@ def train_deeponet_cp(config, args):
                            sub=data_config['sub'], sub_t=data_config['sub_t'],
                            offset=data_config['offset'], num=data_config['n_sample'],
                            t_interval=data_config['time_interval'])
-    train_dataset, test_dataset = dataset.split_dataset(data_config['n_sample'], 
+    train_dataset, val_dataset, test_dataset = dataset.split_dataset(data_config['n_sample'], 
                                                     offset=data_config['offset'], 
-                                                    test_ratio=data_config['test_ratio'])
+                                                    test_ratio=data_config['test_ratio'],
+                                                    val_ratio=data_config.get('val_ratio', 0.1))
 
     train_loader = DataLoader(train_dataset, batch_size=config['train']['batchsize'],
                             shuffle=data_config['shuffle'],
@@ -52,6 +122,14 @@ def train_deeponet_cp(config, args):
                                                 shuffle=data_config['shuffle'],
                                                 distributed=args.distributed),
                             drop_last=True)
+    
+    val_loader = DataLoader(val_dataset, batch_size=batch_size,
+                            shuffle=False, 
+                            sampler=data_sampler(val_dataset,
+                                                shuffle=data_config['shuffle'],
+                                                distributed=args.distributed),
+                            drop_last=False)
+
 
     v = 1 / config['data']['Re']
     S, T = dataset.S, dataset.T
@@ -99,13 +177,12 @@ def train_deeponet_cp(config, args):
     pbar = range(config['train']['epochs'])
     pbar = tqdm(pbar, dynamic_ncols=True, smoothing=0.1)
     myloss = LpLoss(size_average=True)
-    model.train()
 
     zero = torch.zeros(1).to(rank)
 
     # Initialize logging
     cumulative_time = 0
-    min_l2_loss = float('inf')
+    min_val_loss = float('inf')
     log_file = None
     if rank == 0:
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -115,6 +192,7 @@ def train_deeponet_cp(config, args):
             f.write(f"Configuration:\n{config_str}\n")
 
     for e in pbar:
+        model.train()
         epoch_start_time = time()
         loss_dict = {'total_loss': 0.0,
                      'loss_ic': 0.0,
@@ -129,12 +207,10 @@ def train_deeponet_cp(config, args):
 
             pred = model(x, grid)
 
-            # Reshape tensors
             x = x.reshape(batch_size, S, S)
             y = y.reshape(batch_size, S, S, T)
             pred = pred.reshape(batch_size, S, S, T)
 
-            # Compute losses
             loss_l2 = myloss(pred.view(batch_size, S, S, T), y.view(batch_size, S, S, T))
             if ic_weight != 0 or f_weight != 0:
                 loss_ic, loss_f = PINO_loss3d(pred.view(batch_size, S, S, T), x, forcing, v, t_interval)
@@ -143,59 +219,62 @@ def train_deeponet_cp(config, args):
 
             total_loss = loss_l2 * data_weight + loss_f * f_weight + loss_ic * ic_weight
 
-            # Backpropagation
             model.zero_grad()
             total_loss.backward()
             optimizer.step()
 
-            # Accumulate losses
             loss_dict['loss_l2'] += loss_l2
             loss_dict['loss_ic'] += loss_ic
             loss_dict['loss_f'] += loss_f
             loss_dict['total_loss'] += total_loss
 
-        # Reduce losses across distributed processes
         loss_reduced = reduce_loss_dict(loss_dict)
 
-        # Normalize losses
         loss_ic = loss_reduced['loss_ic'].item() / len(train_loader)
         loss_f = loss_reduced['loss_f'].item() / len(train_loader)
         total_loss = loss_reduced['total_loss'].item() / len(train_loader)
         loss_l2 = loss_reduced['loss_l2'].item() / len(train_loader)
 
-        # Scheduler step
         scheduler.step()
         epoch_time = time() - epoch_start_time
         cumulative_time += epoch_time
 
+        val_total_loss, val_l2_loss, val_ic_loss, val_f_loss = validate_model(model, val_loader, dataset, config, rank)  
         if rank == 0:
-            # Prepare log dictionary
             log_dict = {
                 'epoch': e + 1,
                 'train_total_loss': total_loss,
                 'train_l2_loss': loss_l2,
                 'train_ic_loss': loss_ic,
-                'train_f_loss':loss_f,
+                'train_f_loss': loss_f,
+                'val_total_loss': val_total_loss,
+                'val_l2_loss': val_l2_loss,
+                'val_ic_loss': val_ic_loss,
+                'val_f_loss': val_f_loss,
                 'epoch_time': str(timedelta(seconds=epoch_time)),
                 'cumulative_time': str(timedelta(seconds=cumulative_time))
             }
 
-           
+            pbar.set_description(
+                f"Epoch: {e+1}; Train Total Loss: {total_loss:.5f}; Val Total Loss: {val_total_loss:.5f}"
+            )
             pbar.set_description(
                 (
                     f"Epoch: {e + 1}; Total loss: {total_loss:.5f}; "
                     f"L2 loss: {loss_l2:.5f}; "
-                    f"IC loss: {loss_ic:.5f}; F loss: {loss_f:.5f}"
+                    f"IC loss: {loss_ic:.5f}; F loss: {loss_f:.5f}; "
+                    f"Val Total Loss: {val_total_loss:.5f}; "
+                    f"Val l2 loss: {val_l2_loss:.5f}; "
+                    f"Val IC loss: {val_ic_loss:.5f}; Val F loss: {val_f_loss:.5f};"
+
                 )
             )
 
-            # Write to log file
             with open(log_file, 'a') as f:
                 f.write(json.dumps(log_dict, indent=4) + '\n')
 
-            # Save checkpoint if this epoch achieves the minimum L2 loss
-            if loss_l2 < min_l2_loss:
-                min_l2_loss = loss_l2
+            if val_total_loss < min_val_loss:
+                min_val_loss = val_total_loss
                 save_checkpoint(e,
                                 config['train']['save_dir'],
                                 config['train']['save_name'].replace('.pt', f'_best.pt'),

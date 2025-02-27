@@ -10,21 +10,22 @@ data:
   sub: 1
   sub_t: 1
   shuffle: False
+  test_ratio: 0.1
+  val_ratio: 0.1
 
 model:
-  branch_layers: [128, 128, 128, 128]
-  trunk_layers: [128, 128, 128, 128]
+  branch_layers: [128, 128, 128, 128, 128 ,128]
+  trunk_layers: [128, 128, 128, 128, 128 ,128]
   activation: 'gelu'
-
 
 train:
   batchsize: 8
-  epochs: 40000
-  milestones: [10000, 20000, 30000]
+  epochs: 20000
+  milestones: [5000, 10000, 15000]
   ic_loss: 1.0
   f_loss: 1.0
   data_loss: 5.0
-  base_lr: 0.001
+  base_lr: 0.0001
   scheduler_gamma: 0.5
   save_dir: 'Re500-deepOnet'
   save_name: 'DeepONet-pretrain-4000.pt'
