@@ -350,25 +350,28 @@ class DeepONetCPNS(Dataset):
         y = self.vor[idx, :, :, :].reshape(-1)
         return u0, y
 
-    def split_dataset(self, n_sample, offset=0, test_ratio=0.1):
+    def split_dataset(self, n_sample, offset=0, test_ratio=0.1, val_ratio=0.1):
         """
-        Split the dataset into train and test sets.
+        Split the dataset into train, validation, and test sets.
 
         Args:
             n_sample (int): Total number of samples.
             offset (int): Starting index for the dataset.
             test_ratio (float): Ratio of the dataset to be used as the test set.
+            val_ratio (float): Ratio of the dataset to be used as the validation set.
 
         Returns:
-            train_dataset, test_dataset: Splitted datasets.
+            train_dataset, val_dataset, test_dataset: Split datasets.
         """
-        indices = list(range(offset, offset + n_sample))  # 生成索引
+        indices = list(range(offset, offset + n_sample))  # Generate indices
         test_size = int(len(indices) * test_ratio)
-        train_size = len(indices) - test_size
+        val_size = int(len(indices) * val_ratio)
+        train_size = len(indices) - test_size - val_size
 
-        train_indices, test_indices = random_split(indices, [train_size, test_size])
+        train_indices, val_indices, test_indices = random_split(indices, [train_size, val_size, test_size])
 
         train_dataset = Subset(self, train_indices)
+        val_dataset = Subset(self, val_indices)
         test_dataset = Subset(self, test_indices)
 
-        return train_dataset, test_dataset
+        return train_dataset, val_dataset, test_dataset
