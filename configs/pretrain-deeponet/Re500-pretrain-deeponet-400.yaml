@@ -1,5 +1,5 @@
 data:
-  datapath: 'Data-n-model/Dataset/NS-Re500_T500_id0.npy'
+  datapath: '/home/mou00006/shared/Meta-PINO/data/NS-Re500_T4000_id0.npy'
   Re: 500
   total_num: 400
   offset: 0
@@ -19,7 +19,6 @@ model:
   trunk_layers: [128, 128, 128, 128, 128 ,128]
   activation: 'gelu'
 
-
 train:
   batchsize: 8
   epochs: 20000
@@ -31,6 +30,7 @@ train:
   scheduler_gamma: 0.5
   save_dir: 'Re500-deepOnet'
   save_name: 'DeepONet-pretrain-400.pt'
+  save_epoch: 5000
   #ckpt: 'checkpoints/Re500-FDM/pretrain-Re500-05s-4000.pt'
 
 log:

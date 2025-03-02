@@ -192,7 +192,7 @@ def save_checkpoint_meta(epoch, path, name, model, optimizer=None):
         optim_dict = 0.0
 
     torch.save({
-        'epoch': epoch,
+        'meta_epoch': epoch,
         'model': model_state_dict,
         'optim': optim_dict
     }, ckpt_dir + name)

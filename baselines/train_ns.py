@@ -272,6 +272,17 @@ def train_deeponet_cp(config, args):
 
             with open(log_file, 'a') as f:
                 f.write(json.dumps(log_dict, indent=4) + '\n')
+            
+            if 'save_epoch' in config['train']: 
+                if config['train']['save_epoch'] is not None:
+                    if (e + 1) == config['train']['save_epoch']:
+                        save_checkpoint(
+                            e,
+                            config['train']['save_dir'],
+                            config['train']['save_name'].replace('.pt', f'_epoch{e+1}.pt'),
+                            model,
+                            optimizer
+                        )
 
             if val_total_loss < min_val_loss:
                 min_val_loss = val_total_loss
