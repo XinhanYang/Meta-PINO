@@ -2,9 +2,9 @@ data:
   seed: 1234
   datapath: 'Data-n-model\Dataset\NS-Re500_T500_id0.npy'
   Re: 500
-  total_num: 40
+  total_num: 400
   offset: 0
-  n_sample: 40
+  n_sample: 400
   time_interval: 0.5
   nx: 64
   nt: 64
@@ -15,13 +15,14 @@ data:
   test_ratio: 0.1
 
 model:
-  branch_layers: [128, 128, 128, 128, 128 ,128]
-  trunk_layers: [128, 128, 128, 128, 128 ,128]
+  branch_layers: [128, 128, 128, 128, 128, 128]
+  trunk_layers: [128, 128, 128, 128, 128, 128]
   activation: 'gelu'
+  normalize: 'layernorm'
 
 train:
-  batchsize: 1
-  epochs: 10
+  batchsize: 8
+  epochs: 200
   milestones: [200]
   meta_lr: 0.00001
   inner_lr: 0.0001
@@ -34,7 +35,6 @@ train:
   save_dir: 'Re500-deepOnet'
   save_name: 'PIdeepOnet-MAML-400.pt'
   inner_steps: 5
-
   ckpt: 'Re500-deepOnet\DeepONet-pretrain-400_best.pt'
 
 test:
