@@ -20,16 +20,14 @@ class DeepONet(nn.Module):
 
 
 class DeepONetCP(nn.Module):
-    def __init__(self, branch_layer, trunk_layer):
+    def __init__(self, branch_layer, trunk_layer, nonlinearity='relu', normalize=None):
         super(DeepONetCP, self).__init__()
-        self.branch = DenseNet(branch_layer, nn.ReLU)
-        self.trunk = DenseNet(trunk_layer, nn.ReLU)
+        self.branch = DenseNet(branch_layer, nonlinearity, normalize=normalize)
+        self.trunk = DenseNet(trunk_layer, nonlinearity, normalize=normalize)
 
     def forward(self, u0, grid):
         a = self.branch(u0)
-        # batchsize x width
         b = self.trunk(grid)
-        # N x width
         return torch.einsum('bi,ni->bn', a, b)
 
 

@@ -74,8 +74,12 @@ def subprocess_fn(args):
     grid = dataset.xyt.to(rank)  # (S*S*T, 3)
 
     u0_dim = dataset.S ** 2
+    activation = config['model']['activation']
+    normalize = config['model']['normalize']
     meta_net = DeepONetCP(branch_layer=[u0_dim] + config['model']['branch_layers'],
-                          trunk_layer=[3] + config['model']['trunk_layers']).to(rank)
+                          trunk_layer=[3] + config['model']['trunk_layers'],
+                          nonlinearity = activation,
+                          normalize=normalize).to(rank)
 
     start_epoch = 0
     if 'ckpt' in config['train']:
@@ -195,14 +199,9 @@ def train(meta_net,
 
                 for inner_iter in range(n_inner_iter):
                     pred = meta_net(x_instance, grid)
-                    pred_reshaped = pred.reshape(1, S, S, T)
-                    y_reshaped = y_instance.reshape(1, S, S, T)
-                    loss_l2 = loss_fn(pred_reshaped, y_reshaped)
+                    loss_l2 = loss_fn(pred.view(1, S, S, T), y_instance.view(1, S, S, T))
 
-                    if inner_ic_weight != 0 or inner_f_weight != 0:
-                        loss_ic, loss_f = PINO_loss3d(pred_reshaped, x_ic, forcing, v, t_interval)
-                    else:
-                        loss_ic, loss_f = torch.zeros(1).to(rank), torch.zeros(1).to(rank)
+                    loss_ic, loss_f = PINO_loss3d(pred.view(1, S, S, T), x_ic, forcing, v, t_interval)
                     inner_loss = loss_f * inner_f_weight + loss_ic * inner_ic_weight
                     instance_inner_losses['loss_l2'][inner_iter] += loss_l2.item()
                     instance_inner_losses['loss_ic'][inner_iter] += loss_ic.item()
@@ -211,18 +210,13 @@ def train(meta_net,
 
                     inner_opt.step(inner_loss)
 
-                    torch.cuda.synchronize()
-                    torch.cuda.empty_cache()
-
                     # if inner_iter == 1:
                     #     total_losses += loss_l2
 
                 pred = meta_net(x_instance, grid)
-                pred_reshaped = pred.reshape(1, S, S, T)
-                y_reshaped = y_instance.reshape(1, S, S, T)
-                loss_l2 = loss_fn(pred_reshaped, y_reshaped)
-                loss_ic, loss_f = PINO_loss3d(pred_reshaped, x_ic, forcing, v, t_interval)
-                meta_loss = loss_l2 * data_weight + loss_ic * ic_weight + loss_f * f_weight
+                loss_l2 = loss_fn(pred.view(1, S, S, T), y_instance.view(1, S, S, T))
+                loss_ic, loss_f = PINO_loss3d(pred.view(1, S, S, T), x_ic, forcing, v, t_interval)
+                meta_loss = loss_l2
                 total_losses += meta_loss
 
                 loss_dict['total_loss'] += meta_loss.item()
