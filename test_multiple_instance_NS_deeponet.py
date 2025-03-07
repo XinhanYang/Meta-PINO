@@ -56,9 +56,10 @@ def subprocess_fn(args):
                            sub=data_config['sub'], sub_t=data_config['sub_t'],
                            offset=data_config['offset'], num=data_config['n_sample'],
                            t_interval=data_config['time_interval'])
-    train_dataset, test_dataset = dataset.split_dataset(data_config['n_sample'], 
+    train_dataset, val_dataset, test_dataset = dataset.split_dataset(data_config['n_sample'], 
                                                     offset=data_config['offset'], 
-                                                    test_ratio=data_config['test_ratio'])
+                                                    test_ratio=data_config['test_ratio'],
+                                                    val_ratio=data_config.get('val_ratio', 0.1))
 
     test_loader = DataLoader(test_dataset, batch_size=config['train']['batchsize'],
                             shuffle=data_config['shuffle'],
@@ -68,8 +69,13 @@ def subprocess_fn(args):
                             drop_last=True)
     
     u0_dim = dataset.S ** 2
+    
+    activation = config['model']['activation']
+    normalize = config['model']['normalize']
     meta_net = DeepONetCP(branch_layer=[u0_dim] + config['model']['branch_layers'],
-                       trunk_layer=[3] + config['model']['trunk_layers']).to(rank)
+                          trunk_layer=[3] + config['model']['trunk_layers'],
+                          nonlinearity = activation,
+                          normalize=normalize).to(rank)
 
     if 'ckpt' in config['train']:
         ckpt_path = config['train']['ckpt']
@@ -109,6 +115,8 @@ def test(meta_net,
     v = 1 / config['data']['Re']
     zero = torch.tensor(0.0, device=rank)
     u0_dim = dataset.S ** 2
+    activation = config['model']['activation']
+    normalize = config['model']['normalize']
 
     # Initialize log file
     if rank == 0:
@@ -143,7 +151,10 @@ def test(meta_net,
             y_instance = y_batch[i].unsqueeze(0)
 
             model = DeepONetCP(branch_layer=[u0_dim] + config['model']['branch_layers'],
-                       trunk_layer=[3] + config['model']['trunk_layers']).to(rank)
+                trunk_layer=[3] + config['model']['trunk_layers'],
+                nonlinearity = activation,
+                normalize=normalize).to(rank)
+
 
             if 'ckpt' in config['train']:
                 ckpt_path = config['train']['ckpt']

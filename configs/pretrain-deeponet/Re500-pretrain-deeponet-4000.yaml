@@ -11,13 +11,14 @@ data:
   sub_t: 1
   shuffle: False
   seed: 1234
-  test_ratio: 0.1
-  val_ratio: 0.1
+  test_ratio: 0.25
+  val_ratio: 0.25
 
 model:
-  branch_layers: [128, 128, 128, 128, 128 ,128]
-  trunk_layers: [128, 128, 128, 128, 128 ,128]
+  branch_layers: [128, 128, 128, 128, 128, 128]
+  trunk_layers: [128, 128, 128, 128, 128, 128]
   activation: 'gelu'
+  normalize: 'layernorm'
 
 train:
   batchsize: 8
