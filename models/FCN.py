@@ -38,16 +38,21 @@ class DenseNet(nn.Module):
                 nonlinearity = nn.Tanh
             elif nonlinearity == 'relu':
                 nonlinearity == nn.ReLU
+            elif nonlinearity == 'gelu':
+                nonlinearity = nn.GELU
             else:
                 raise ValueError(f'{nonlinearity} is not supported')
         self.layers = nn.ModuleList()
+        self.normalize = normalize
 
         for j in range(self.n_layers):
             self.layers.append(nn.Linear(layers[j], layers[j+1]))
 
             if j != self.n_layers - 1:
-                if normalize:
-                    self.layers.append(nn.BatchNorm1d(layers[j+1]))
+                if self.normalize == 'batchnorm':
+                    self.layers.append(nn.BatchNorm1d(layers[j+1]))  # BatchNorm1d
+                elif self.normalize == 'layernorm':
+                    self.layers.append(nn.LayerNorm(layers[j+1]))  # LayerNorm
 
                 self.layers.append(nonlinearity())
 
