@@ -37,7 +37,7 @@ class DenseNet(nn.Module):
             if nonlinearity == 'tanh':
                 nonlinearity = nn.Tanh
             elif nonlinearity == 'relu':
-                nonlinearity == nn.ReLU
+                nonlinearity = nn.ReLU
             elif nonlinearity == 'gelu':
                 nonlinearity = nn.GELU
             else:

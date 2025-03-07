@@ -1,6 +1,6 @@
 data:
   seed: 1234
-  datapath: 'Data-n-model\Dataset\NS-Re500_T500_id0.npy'
+  datapath: '/home/mou00006/shared/Meta-PINO/data/NS-Re500_T4000_id0.npy'
   Re: 500
   total_num: 400
   offset: 0
@@ -21,7 +21,7 @@ model:
   normalize: 'layernorm'
 
 train:
-  batchsize: 8
+  batchsize: 4
   epochs: 200
   milestones: [200]
   meta_lr: 0.00001

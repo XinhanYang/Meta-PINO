@@ -62,20 +62,15 @@ def eval_ns_deeponet(model, dataset, dataloader, forcing, config, device, use_tq
 def test_deeponet_ns(config):
     device = 0 if torch.cuda.is_available() else 'cpu'
     data_config = config['data']
-
-    # Build the NS dataset; assume the DeepONetCPNS class is defined
-    dataset = DeepONetCPNS(
-        datapath=data_config['datapath'],
-        nx=data_config['nx'], nt=data_config['nt'],
-        sub=data_config['sub'], sub_t=data_config['sub_t'],
-        offset=data_config['offset'], num=data_config['n_sample'],
-        t_interval=data_config['time_interval']
-    )
-
-    # Split the dataset into training and test sets according to the configuration
-    train_dataset, test_dataset = dataset.split_dataset(
-        data_config['n_sample'], data_config['offset'], data_config['test_ratio']
-    )
+    dataset = DeepONetCPNS(datapath=data_config['datapath'],
+                           nx=data_config['nx'], nt=data_config['nt'],
+                           sub=data_config['sub'], sub_t=data_config['sub_t'],
+                           offset=data_config['offset'], num=data_config['n_sample'],
+                           t_interval=data_config['time_interval'])
+    train_dataset, val_dataset, test_dataset = dataset.split_dataset(data_config['n_sample'], 
+                                                    offset=data_config['offset'], 
+                                                    test_ratio=data_config['test_ratio'],
+                                                    val_ratio=data_config.get('val_ratio', 0.1))
 
     train_loader = DataLoader(
         train_dataset,
@@ -83,6 +78,14 @@ def test_deeponet_ns(config):
         sampler=data_sampler(train_dataset, shuffle=False, distributed=False),
         drop_last=False
     )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config['test']['batchsize'],
+        sampler=data_sampler(val_dataset, shuffle=False, distributed=False),
+        drop_last=False
+    )
+
     test_loader = DataLoader(
         test_dataset,
         batch_size=config['test']['batchsize'],
@@ -92,10 +95,12 @@ def test_deeponet_ns(config):
 
     # Determine the branch network input dimension (S^2) from the dataset dimensions
     u0_dim = dataset.S ** 2
-    model = DeepONetCP(
-        branch_layer=[u0_dim] + config['model']['branch_layers'],
-        trunk_layer=[3] + config['model']['trunk_layers']
-    ).to(device)
+    activation = config['model']['activation']
+    normalize = config['model']['normalize']
+    model = DeepONetCP(branch_layer=[u0_dim] + config['model']['branch_layers'],
+                          trunk_layer=[3] + config['model']['trunk_layers'],
+                          nonlinearity = activation,
+                          normalize=normalize).to(device)
 
     # Load pretrained model weights for testing if provided in the configuration
     if 'ckpt' in config['test']:
@@ -111,6 +116,9 @@ def test_deeponet_ns(config):
 
     print('Train set evaluation:\n')
     eval_ns_deeponet(model, dataset, train_loader, forcing, config, device)
+
+    print('Validation set evaluation:\n')
+    eval_ns_deeponet(model, dataset, val_loader, forcing, config, device)
 
     print('Test set evaluation:\n')
     eval_ns_deeponet(model, dataset, test_loader, forcing, config, device)
