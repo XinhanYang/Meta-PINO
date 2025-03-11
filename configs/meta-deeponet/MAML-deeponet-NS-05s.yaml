@@ -13,18 +13,19 @@ data:
   shuffle: False
   seed: 1234
   test_ratio: 0.1
-
+  val_ratio: 0.1
+  
 model:
   branch_layers: [128, 128, 128, 128, 128, 128]
   trunk_layers: [128, 128, 128, 128, 128, 128]
-  activation: 'gelu'
-  normalize: 'layernorm'
+  activation: 'relu'
+  normalize: 'none'
 
 train:
-  batchsize: 4
+  batchsize: 2
   epochs: 200
   milestones: [200]
-  meta_lr: 0.00001
+  meta_lr: 0.0001
   inner_lr: 0.0001
   scheduler_gamma: 0.5
   data_loss: 1.0
@@ -35,7 +36,7 @@ train:
   save_dir: 'Re500-deepOnet'
   save_name: 'PIdeepOnet-MAML-400.pt'
   inner_steps: 5
-  ckpt: 'Re500-deepOnet\DeepONet-pretrain-400_best.pt'
+  #ckpt: 'Re500-deepOnet\DeepONet-pretrain-400_best.pt'
 
 test:
   batchsize: 2
