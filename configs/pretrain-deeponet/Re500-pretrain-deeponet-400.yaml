@@ -17,8 +17,8 @@ data:
 model:
   branch_layers: [128, 128, 128, 128, 128, 128]
   trunk_layers: [128, 128, 128, 128, 128, 128]
-  activation: 'gelu'
-  normalize: 'layernorm'
+  activation: 'relu'
+  normalize: 'none'
 
 train:
   batchsize: 8

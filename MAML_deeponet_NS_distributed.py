@@ -172,16 +172,18 @@ def train(meta_net,
                      'loss_ic': 0.0,
                      'loss_f': 0.0,
                      'loss_l2': 0.0}
-        instance_inner_losses = {'total_loss': [0.0] * n_inner_iter,
-                                 'loss_ic': [0.0] * n_inner_iter,
-                                 'loss_f': [0.0] * n_inner_iter,
-                                 'loss_l2': [0.0] * n_inner_iter}
-
+        instance_inner_losses = {
+            'total_loss': torch.zeros(n_inner_iter, device=rank),
+            'loss_ic': torch.zeros(n_inner_iter, device=rank),
+            'loss_f': torch.zeros(n_inner_iter, device=rank),
+            'loss_l2': torch.zeros(n_inner_iter, device=rank)
+        }
         if rank == 0 and profile:
             torch.cuda.synchronize()
             t1 = default_timer()
 
-        inner_opt = torchopt.MetaAdam(meta_net, lr=inner_lr)
+        #inner_opt = torchopt.MetaAdam(meta_net, lr=inner_lr, use_accelerated_op=True)
+        inner_opt = torchopt.MetaSGD(meta_net, lr=inner_lr)
 
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(rank), y_batch.to(rank)
@@ -203,10 +205,10 @@ def train(meta_net,
 
                     loss_ic, loss_f = PINO_loss3d(pred.view(1, S, S, T), x_ic, forcing, v, t_interval)
                     inner_loss = loss_f * inner_f_weight + loss_ic * inner_ic_weight
-                    instance_inner_losses['loss_l2'][inner_iter] += loss_l2.item()
-                    instance_inner_losses['loss_ic'][inner_iter] += loss_ic.item()
-                    instance_inner_losses['loss_f'][inner_iter] += loss_f.item()
-                    instance_inner_losses['total_loss'][inner_iter] += inner_loss.item()
+                    instance_inner_losses['loss_l2'][inner_iter] += loss_l2
+                    instance_inner_losses['loss_ic'][inner_iter] += loss_ic
+                    instance_inner_losses['loss_f'][inner_iter] += loss_f
+                    instance_inner_losses['total_loss'][inner_iter] += inner_loss
 
                     inner_opt.step(inner_loss)
 
@@ -219,10 +221,10 @@ def train(meta_net,
                 meta_loss = loss_l2
                 total_losses += meta_loss
 
-                loss_dict['total_loss'] += meta_loss.item()
-                loss_dict['loss_l2'] += loss_l2.item()
-                loss_dict['loss_ic'] += loss_ic.item()
-                loss_dict['loss_f'] += loss_f.item()
+                loss_dict['total_loss'] += meta_loss
+                loss_dict['loss_l2'] += loss_l2
+                loss_dict['loss_ic'] += loss_ic
+                loss_dict['loss_f'] += loss_f
 
                 torchopt.recover_state_dict(meta_net, net_state_dict)
                 torchopt.recover_state_dict(inner_opt, optim_state_dict)
@@ -241,27 +243,26 @@ def train(meta_net,
         loss_reduced = reduce_loss_dict(loss_dict)
         instance_inner_losses_reduce = reduce_loss_dict(instance_inner_losses)
 
-        avg_loss_ic = loss_reduced['loss_ic'] / (len(train_loader) * batch_size)
-        avg_loss_f = loss_reduced['loss_f'] / (len(train_loader) * batch_size)
-        avg_total_loss = loss_reduced['total_loss'] / (len(train_loader) * batch_size)
-        avg_loss_l2 = loss_reduced['loss_l2'] / (len(train_loader) * batch_size)
+        avg_loss_ic = loss_reduced['loss_ic'].item() / (len(train_loader) * batch_size)
+        avg_loss_f = loss_reduced['loss_f'].item() / (len(train_loader) * batch_size)
+        avg_total_loss = loss_reduced['total_loss'].item() / (len(train_loader) * batch_size)
+        avg_loss_l2 = loss_reduced['loss_l2'].item() / (len(train_loader) * batch_size)
         avg_instance_loss = {
-            f'avg_total_loss_iter_{i+1}': instance_inner_losses_reduce['total_loss'][i] / (len(train_loader) * batch_size)
+            f'avg_total_loss_iter_{i+1}': (instance_inner_losses_reduce['total_loss'][i] / (len(train_loader) * batch_size)).item()
             for i in range(n_inner_iter)
         }
         avg_instance_loss.update({
-            f'avg_loss_ic_iter_{i+1}': instance_inner_losses_reduce['loss_ic'][i] / (len(train_loader) * batch_size)
+            f'avg_loss_ic_iter_{i+1}': (instance_inner_losses_reduce['loss_ic'][i] / (len(train_loader) * batch_size)).item()
             for i in range(n_inner_iter)
         })
         avg_instance_loss.update({
-            f'avg_loss_f_iter_{i+1}': instance_inner_losses_reduce['loss_f'][i] / (len(train_loader) * batch_size)
+            f'avg_loss_f_iter_{i+1}': (instance_inner_losses_reduce['loss_f'][i] / (len(train_loader) * batch_size)).item()
             for i in range(n_inner_iter)
         })
         avg_instance_loss.update({
-            f'avg_loss_l2_iter_{i+1}': instance_inner_losses_reduce['loss_l2'][i] / (len(train_loader) * batch_size)
+            f'avg_loss_l2_iter_{i+1}': (instance_inner_losses_reduce['loss_l2'][i] / (len(train_loader) * batch_size)).item()
             for i in range(n_inner_iter)
         })
-
         log_dict = {
             'epoch': ep + 1,
             'train_total_loss': avg_total_loss,

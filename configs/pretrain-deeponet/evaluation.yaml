@@ -12,12 +12,13 @@ data:
   shuffle: False
   seed: 1234
   test_ratio: 0.1
+  val_ratio: 0.1
 
 model:
-  branch_layers: [128, 128, 128, 128, 128 ,128]
-  trunk_layers: [128, 128, 128, 128, 128 ,128]
-  activation: 'gelu'
-
+  branch_layers: [128, 128, 128, 128, 128, 128]
+  trunk_layers: [128, 128, 128, 128, 128, 128]
+  activation: 'relu'
+  normalize: 'none'
 
 test:
   batchsize: 1
