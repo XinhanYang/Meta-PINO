@@ -82,7 +82,7 @@ class InnerNet(
             'loss_l2': [0.0] * self.n_inner_iter,
             'loss_ic': [0.0] * self.n_inner_iter,
             'loss_f': [0.0] * self.n_inner_iter,
-            'pinn_loss' : [0.0] * self.n_inner_iter,
+            'pinn_loss': [0.0] * self.n_inner_iter,
             'regularization_loss': [0.0] * self.n_inner_iter,
             'total_loss': [0.0] * self.n_inner_iter,
         }
@@ -97,7 +97,7 @@ class InnerNet(
             'loss_l2': [0.0] * self.n_inner_iter,
             'loss_ic': [0.0] * self.n_inner_iter,
             'loss_f': [0.0] * self.n_inner_iter,
-            'pinn_loss' : [0.0] * self.n_inner_iter,
+            'pinn_loss': [0.0] * self.n_inner_iter,
             'regularization_loss': [0.0] * self.n_inner_iter,
             'total_loss': [0.0] * self.n_inner_iter,
         }
@@ -303,25 +303,27 @@ def train(meta_net,
     
     # Calculate error before training.
     min_val_loss = float('inf')
-    loss_dict = {'total_loss': 0.0,
-                     'loss_ic': 0.0,
-                     'loss_f': 0.0,
-                     'loss_l2': 0.0}
+    loss_dict = {
+        'total_loss': torch.zeros(1, device=rank),
+        'loss_ic': torch.zeros(1, device=rank),
+        'loss_f': torch.zeros(1, device=rank),
+        'loss_l2': torch.zeros(1, device=rank)
+    }
     
     # Initialize log_dict
     log_dict = {
-        'epoch': 0,
-        'train_total_loss': 0.0,
-        'train_l2_error': 0.0,
-        'train_ic_loss': 0.0,
-        'train_f_loss': 0.0,
-        'val_total_loss': 0.0,
-        'val_l2_error': 0.0,
-        'val_ic_loss': 0.0,
-        'val_f_loss': 0.0,
+        'epoch': torch.tensor(0, device=rank),
+        'train_total_loss': torch.zeros(1, device=rank),
+        'train_l2_error': torch.zeros(1, device=rank),
+        'train_ic_loss': torch.zeros(1, device=rank),
+        'train_f_loss': torch.zeros(1, device=rank),
+        'val_total_loss': torch.zeros(1, device=rank),
+        'val_l2_error': torch.zeros(1, device=rank),
+        'val_ic_loss': torch.zeros(1, device=rank),
+        'val_f_loss': torch.zeros(1, device=rank),
         'avg_instance_losses': None,
-        'epoch_time': 0,
-        'cumulative_time': 0
+        'epoch_time': torch.zeros(1, device=rank),
+        'cumulative_time': torch.zeros(1, device=rank)
     }
     
     inner_nets = [InnerNet(meta_net,
@@ -343,14 +345,14 @@ def train(meta_net,
     with torch.no_grad():
         for x, y in val_loader:
             x, y = x.to(rank), y.to(rank)
+            bs = x.shape[0]
             grid = dataset.xyt.to(rank)
-            out = meta_net(x, grid).reshape(batch_size, S, S, T)
-            x = x.reshape(batch_size, S, S)
+            out = meta_net(x, grid)
+            out = out.reshape(bs, S, S, T)
+            x = x.reshape(bs, S, S)
 
-            loss_l2 = loss_fn(out.view(batch_size, S, S, T), y.view(batch_size, S, S, T))
-
-            loss_ic, loss_f = PINO_loss3d(out.view(batch_size, S, S, T), x, forcing, v, t_interval)
-
+            loss_l2 = loss_fn(out.view(bs, S, S, T), y.view(bs, S, S, T))
+            loss_ic, loss_f = PINO_loss3d(out.view(bs, S, S, T), x, forcing, v, t_interval)
             total_loss = loss_l2 * data_weight + loss_f * f_weight + loss_ic * ic_weight
 
             loss_dict['total_loss'] += total_loss
@@ -377,27 +379,31 @@ def train(meta_net,
     })
 
     for ep in pbar:
-        epoch_start_time = time()  # Start time for the epoch
-        train_loss_dict = {'total_loss': 0.0,
-                     'loss_ic': 0.0,
-                     'loss_f': 0.0,
-                     'loss_l2': 0.0}
-        val_loss_dict = {'total_loss': 0.0,
-                     'loss_ic': 0.0,
-                     'loss_f': 0.0,
-                     'loss_l2': 0.0}
+        epoch_start_time = time()
+        train_loss_dict = {
+            'total_loss': torch.zeros(1, device=rank),
+            'loss_ic': torch.zeros(1, device=rank),
+            'loss_f': torch.zeros(1, device=rank),
+            'loss_l2': torch.zeros(1, device=rank)
+        }
+        val_loss_dict = {
+            'total_loss': torch.zeros(1, device=rank),
+            'loss_ic': torch.zeros(1, device=rank),
+            'loss_f': torch.zeros(1, device=rank),
+            'loss_l2': torch.zeros(1, device=rank)
+        }
         log_dict = {}
         if rank == 0 and profile:
-                torch.cuda.synchronize()
-                t1 = default_timer()
+            torch.cuda.synchronize()
+            t1 = default_timer()
 
         inner_loss_dict = {
-            'loss_l2': [0.0] * n_inner_iter,
-            'loss_ic': [0.0] * n_inner_iter,
-            'loss_f': [0.0] * n_inner_iter,
-            'regularization_loss': [0.0] * n_inner_iter,
-            'pinn_loss': [0.0] * n_inner_iter,
-            'total_loss': [0.0] * n_inner_iter,
+            'loss_l2': torch.zeros(n_inner_iter, device=rank),
+            'loss_ic': torch.zeros(n_inner_iter, device=rank),
+            'loss_f': torch.zeros(n_inner_iter, device=rank),
+            'regularization_loss': torch.zeros(n_inner_iter, device=rank),
+            'pinn_loss': torch.zeros(n_inner_iter, device=rank),
+            'total_loss': torch.zeros(n_inner_iter, device=rank),
         }
         
         inner_nets = [InnerNet(meta_net,
@@ -426,7 +432,6 @@ def train(meta_net,
             meta_opt.zero_grad()
 
             for i in range(batch_size):
-                # Extract individual samples from the batch
                 x_instance = x_batch[i].unsqueeze(0)
                 y_instance = y_batch[i].unsqueeze(0)
                 inner_net = inner_nets[i]
@@ -436,9 +441,7 @@ def train(meta_net,
                 out_instance = optimal_inner_net(x_instance, grid).reshape(1, S, S, T)
                 x_instance = x_instance.reshape(1, S, S)
                 loss_l2 = loss_fn(out_instance, y_instance.reshape(1, S, S, T))
-
                 loss_ic, loss_f = PINO_loss3d(out_instance, x_instance, forcing, v, t_interval)
-
                 total_loss = loss_l2 * data_weight + loss_ic * ic_weight + loss_f * f_weight
                 
                 total_losses += total_loss
@@ -449,12 +452,12 @@ def train(meta_net,
                 train_loss_dict['loss_ic'] += loss_ic
 
                 for j in range(n_inner_iter):
-                    inner_loss_dict['loss_l2'][j] += inner_net.instance_inner_losses['loss_l2'][j]
-                    inner_loss_dict['loss_ic'][j] += inner_net.instance_inner_losses['loss_ic'][j]
-                    inner_loss_dict['loss_f'][j] += inner_net.instance_inner_losses['loss_f'][j]
-                    inner_loss_dict['regularization_loss'][j] += inner_net.instance_inner_losses['regularization_loss'][j]
-                    inner_loss_dict['pinn_loss'][j] += inner_net.instance_inner_losses['pinn_loss'][j]
-                    inner_loss_dict['total_loss'][j] += inner_net.instance_inner_losses['total_loss'][j]
+                    inner_loss_dict['loss_l2'][j] += torch.tensor(inner_net.instance_inner_losses['loss_l2'][j], device=rank)
+                    inner_loss_dict['loss_ic'][j] += torch.tensor(inner_net.instance_inner_losses['loss_ic'][j], device=rank)
+                    inner_loss_dict['loss_f'][j] += torch.tensor(inner_net.instance_inner_losses['loss_f'][j], device=rank)
+                    inner_loss_dict['regularization_loss'][j] += torch.tensor(inner_net.instance_inner_losses['regularization_loss'][j], device=rank)
+                    inner_loss_dict['pinn_loss'][j] += torch.tensor(inner_net.instance_inner_losses['pinn_loss'][j], device=rank)
+                    inner_loss_dict['total_loss'][j] += torch.tensor(inner_net.instance_inner_losses['total_loss'][j], device=rank)
                 
                 torch.cuda.synchronize()
 
@@ -464,22 +467,53 @@ def train(meta_net,
 
         # Validation phase
         with torch.no_grad():
+            val_loss_dict = {
+                'total_loss': torch.zeros(1, device=rank),
+                'loss_ic': torch.zeros(1, device=rank),
+                'loss_f': torch.zeros(1, device=rank),
+                'loss_l2': torch.zeros(1, device=rank)
+            }
             for x_batch, y_batch in val_loader:
                 x_batch, y_batch = x_batch.to(rank), y_batch.to(rank)
                 grid = dataset.xyt.to(rank)
-                out = meta_net(x_batch, grid).reshape(batch_size, S, S, T)
-                x = x_batch.reshape(batch_size, S, S)
+                bs = x_batch.shape[0]
 
-                loss_l2 = loss_fn(out.view(batch_size, S, S, T), y_batch.view(batch_size, S, S, T))
+                for i in range(bs):
+                    x_instance = x_batch[i].unsqueeze(0)
+                    y_instance = y_batch[i].unsqueeze(0)
+                    
+                    # 为每个验证样本创建一个inner net
+                    inner_net = InnerNet(meta_net,
+                        dataset,
+                        loss_fn,
+                        inner_lr,
+                        n_inner_iter,
+                        reg_param,
+                        batch_size,
+                        S,
+                        T,
+                        rank,
+                        forcing,
+                        t_interval,
+                        v,
+                        inner_ic_weight,
+                        inner_f_weight)
+                    
+                    # 执行inner loop优化
+                    inner_net.reset_parameters()
+                    optimal_inner_net = inner_net.solve(x_instance, grid, y_instance)
+                    
+                    # 使用优化后的网络计算验证loss
+                    out_instance = optimal_inner_net(x_instance, grid).reshape(1, S, S, T)
+                    x_instance = x_instance.reshape(1, S, S)
+                    loss_l2 = loss_fn(out_instance, y_instance.reshape(1, S, S, T))
+                    loss_ic, loss_f = PINO_loss3d(out_instance, x_instance, forcing, v, t_interval)
+                    total_loss = loss_l2 * data_weight + loss_f * f_weight + loss_ic * ic_weight
 
-                loss_ic, loss_f = PINO_loss3d(out.view(batch_size, S, S, T), x, forcing, v, t_interval)
-
-                total_loss = loss_l2 * data_weight + loss_f * f_weight + loss_ic * ic_weight
-
-                val_loss_dict['total_loss'] += total_loss
-                val_loss_dict['loss_l2'] += loss_l2
-                val_loss_dict['loss_f'] += loss_f
-                val_loss_dict['loss_ic'] += loss_ic
+                    val_loss_dict['total_loss'] += total_loss
+                    val_loss_dict['loss_l2'] += loss_l2
+                    val_loss_dict['loss_f'] += loss_f
+                    val_loss_dict['loss_ic'] += loss_ic
         
         epoch_time = time() - epoch_start_time
         cumulative_time += epoch_time
@@ -504,27 +538,27 @@ def train(meta_net,
         val_loss_l2 = val_loss_reduced['loss_l2'].item() / (len(val_loader)*batch_size)
 
         avg_instance_loss = {
-            f'avg_total_loss_iter_{j+1}': inner_loss_dict_reduced['total_loss'][j] / (len(train_loader) * batch_size)
+            f'avg_total_loss_iter_{j+1}': inner_loss_dict_reduced['total_loss'][j].item() / (len(train_loader) * batch_size)
             for j in range(n_inner_iter)
         }
         avg_instance_loss.update({
-            f'avg_loss_ic_iter_{j+1}': inner_loss_dict_reduced['loss_ic'][j] / (len(train_loader) * batch_size)
+            f'avg_loss_ic_iter_{j+1}': inner_loss_dict_reduced['loss_ic'][j].item() / (len(train_loader) * batch_size)
             for j in range(n_inner_iter)
         })
         avg_instance_loss.update({
-            f'avg_loss_f_iter_{j+1}': inner_loss_dict_reduced['loss_f'][j] / (len(train_loader) * batch_size)
+            f'avg_loss_f_iter_{j+1}': inner_loss_dict_reduced['loss_f'][j].item() / (len(train_loader) * batch_size)
             for j in range(n_inner_iter)
         })
         avg_instance_loss.update({
-            f'avg_regularization_loss_iter_{j+1}': inner_loss_dict_reduced['regularization_loss'][j] / (len(train_loader) * batch_size)
+            f'avg_regularization_loss_iter_{j+1}': inner_loss_dict_reduced['regularization_loss'][j].item() / (len(train_loader) * batch_size)
             for j in range(n_inner_iter)
         })
         avg_instance_loss.update({
-            f'avg_pinn_loss_iter_{j+1}': inner_loss_dict_reduced['pinn_loss'][j] / (len(train_loader) * batch_size)
+            f'avg_pinn_loss_iter_{j+1}': inner_loss_dict_reduced['pinn_loss'][j].item() / (len(train_loader) * batch_size)
             for j in range(n_inner_iter)
         })
         avg_instance_loss.update({
-            f'avg_loss_l2_iter_{j+1}': inner_loss_dict_reduced['loss_l2'][j] / (len(train_loader) * batch_size)
+            f'avg_loss_l2_iter_{j+1}': inner_loss_dict_reduced['loss_l2'][j].item() / (len(train_loader) * batch_size)
             for j in range(n_inner_iter)
         })
 
